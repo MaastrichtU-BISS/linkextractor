@@ -9,7 +9,6 @@ FILE_BWB_STYLESHEET = "./data/static/xsl/bwb-regeling-aanduiding.xslt"
 FILE_BWB_IDS_TRANSFORMED = "./data/dynamic/bwb/BWBIdList.server.xml"
 FILE_BWB_IDS_XML = "./data/dynamic/bwb/BWBIdList.xml"
 FILE_BWB_IDS_ZIP = f"{FILE_BWB_IDS_XML}.zip"
-# URL_XML_BWB_ID_LIST = "https://zoekservice.overheid.nl/BWBIdService/BWBIdList.xml.zip!/BWBIdList.xml" # <-- for some reason they used this format, but below seems to have same effect
 URL_BWB_IDS_ZIP = "https://zoekservice.overheid.nl/BWBIdService/BWBIdList.xml.zip"
 
 def prepare_bwb_trie(when_exists: typing.Literal["error", "overwrite", "continue"] = "error"):
@@ -80,36 +79,7 @@ def prepare_bwb_trie(when_exists: typing.Literal["error", "overwrite", "continue
   extract_bwb_id_xml()
   parse_bwb_xslt()
 
-# test_cont = """<document><lx:regeling>xyz</lx:regeling></document>"""
-# test_cont = """<lx:text><lx:regeling>xyz</lx:regeling></lx:text>"""
-# test_cont = """<lx:regeling lokale_alias="BW">Burgerlijk Wetboek</lx:regeling>, artikel 5, lid 2."""
-test_cont = """artikel 5, lid 2."""
-
-def build_db():
-  pass
-
-
-def prepare_wayeye():
-  # https://github.com/waxeye-org/waxeye/blob/master/docs/book/book#L812
-  import waxeye
-  import parser_le_links
-  import parser_le_eu_regelgeving
-
-  # $ /opt/lx/waxeye/bin/waxeye -g python . -m grammars/le-links.waxeye
-  p = parser_le_eu_regelgeving.Parser()
-  # ast = p.parse("Artikel 6:162 BW")
-  # ast = p.parse("""<lx:regeling>Wist je dat artikel 10:56 van het Burgerlijk Wetboek en artikel 56 van het Burgerlijk Wetboek Boek 10 hetzelfde zijn?</lx:regeling>""")
-
-  ast = p.parse(test_cont)
-
-  print("OUTPUT:")
-  print(ast)
-
-  pass
-
-
 if __name__ == "__main__":
   print("Starting preprocessing")
   prepare_bwb_trie("overwrite")
   # prepare_bwb_trie("continue")
-  # prepare_wayeye()
