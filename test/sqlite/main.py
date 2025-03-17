@@ -4,6 +4,7 @@ import sqlite3
 # set wrkdir
 import os
 import pathlib
+from typing import List
 script_dir = pathlib.Path(__file__).parent.resolve()
 os.chdir(script_dir)
 # end set wrkdir
@@ -24,8 +25,9 @@ def create_database(db_name):
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS aliases (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            alias TEXT NOT NULL UNIQUE,
+            alias TEXT NOT NULL,
             ref INTEGER NOT NULL,
+            UNIQUE (alias, ref)
             FOREIGN KEY (ref) REFERENCES refs(id) ON DELETE CASCADE
         )
     ''')
@@ -64,53 +66,76 @@ def insert_from_trie_file(file_path, db_name):
 def prepare(db_name):
     trie_file = "../../data/copied/regeling-aanduiding.trie"
 
-    create_database(db_name)
-    insert_from_trie_file(trie_file, db_name)
+    if not os.path.exists(db_name):
+        print("Creating database...")
+        create_database(db_name)
+        insert_from_trie_file(trie_file, db_name)
 
-def search(input_text, db_name="database.db"):
+def find_aliases_in_text(input_text, db_name="database.db"):
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
-    
-    # Escape any SQL wildcard characters in input
-    input_text_escaped = re.sub(r'([_%])', r'\\\1', input_text)
+
+    # input_text_escaped = re.sub(r'([_%])', r'\\\1', input_text)
 
     cursor.execute('''
-        SELECT a.alias, r.name FROM aliases a
-        JOIN refs r 
-            ON (a.ref = r.id)
+        SELECT id, alias FROM aliases
         WHERE ? LIKE '%' || alias || '%'
         ORDER BY LENGTH(alias) DESC
-        LIMIT 10;
-    ''', (input_text_escaped,))
+        LIMIT 20;
+    ''', (input_text,))
     
+    results = [row[1] for row in cursor.fetchall()]
+    conn.close()
+    return results
+
+def find_matching_aliases(name, wildcard=None, db_name="database.db"):
+    conn = sqlite3.connect(db_name)
+    cursor = conn.cursor()
+    name_escaped = re.sub(r'([_%])', r'\\\1', name)
+    if wildcard is not None:
+        if 'l' in wildcard:
+            name_escaped = '%'+name_escaped
+        if 'r' in wildcard:
+            name_escaped = name_escaped+'%'
+    cursor.execute('''
+        SELECT a.alias, r.name
+        FROM aliases a
+        JOIN refs r ON (a.ref = r.id)
+        WHERE a.alias LIKE ?
+        LIMIT 20;
+    ''', (name_escaped,))
+
     results = [row for row in cursor.fetchall()]
     conn.close()
     return results
 
-def match_patterns(text):
 
+def match_patterns_regex(text, matches: List[tuple]):
+    if False:
+        pass
+        # elementtype <- boek | deel | titeldeel | titel | hoofdstuk | afdeling | paragraaf | subparagraaf | artikel | bijlage | inhoudsopgave | aanwijzing
+        # boek <- "boek" | "bk" ?'.'
+        # deel <- "deel" | "dl" ?'.' | "onderdeel"
+        # titeldeel <- "titeldeel" | "tit" ?'el' 'd' ?'ee' 'l' ?'.'
+        # titel <- "titel" | "tit."
+        # hoofdstuk <- "hoofdstuk" | "h" ?'f' ?'d' ?'s' ?'t' ?'u' ?'k' ?'.'
+        # afdeling <- "afdeling" | "afdeeling" | "afd."
+        # paragraaf <- "paragraaf" | "par" ?'a' ?'g' ?'r' ?'aa' ?'f' ?'.'
+        # subparagraaf <- "subparagraaf" | "sub" ?'-' "par" ?'a' ?'g' ?'r' ?'aa' ?'f' ?'.'
+        # artikel <- ("artikel" ?'en' | "art" ?'t' ?'.') ?(':' ?sp '-')
+        # bijlage <- "bijlage" | "bijl" ?'.'
+        # inhoudsopgave <- "inh" ('ouds' | '.' | '-') "opg" ?'ave' ?'.'
+        # aanwijzing <- "aanwijzing"
 
-    # elementtype <- boek | deel | titeldeel | titel | hoofdstuk | afdeling | paragraaf | subparagraaf | artikel | bijlage | inhoudsopgave | aanwijzing
-    # boek <- "boek" | "bk" ?'.'
-    # deel <- "deel" | "dl" ?'.' | "onderdeel"
-    # titeldeel <- "titeldeel" | "tit" ?'el' 'd' ?'ee' 'l' ?'.'
-    # titel <- "titel" | "tit."
-    # hoofdstuk <- "hoofdstuk" | "h" ?'f' ?'d' ?'s' ?'t' ?'u' ?'k' ?'.'
-    # afdeling <- "afdeling" | "afdeeling" | "afd."
-    # paragraaf <- "paragraaf" | "par" ?'a' ?'g' ?'r' ?'aa' ?'f' ?'.'
-    # subparagraaf <- "subparagraaf" | "sub" ?'-' "par" ?'a' ?'g' ?'r' ?'aa' ?'f' ?'.'
-    # artikel <- ("artikel" ?'en' | "art" ?'t' ?'.') ?(':' ?sp '-')
-    # bijlage <- "bijlage" | "bijl" ?'.'
-    # inhoudsopgave <- "inh" ('ouds' | '.' | '-') "opg" ?'ave' ?'.'
-    # aanwijzing <- "aanwijzing"
-
-    patterns_types = {
+    pt_ws_0 = "\s*"
+    pt_ws = "\s+"
+    pts_types = {
         "boek": r"(?:boek|bk\.?)",
         # ...,
         "artikel": r"(?:artikel(?:en)?|artt?\.?)"
     }
 
-    patterns_elementnummer = [
+    pt_elementnummer = [
         r"(?:[1-9][.:])?(?:[1-9]?[0-9])?[a-zA-Z](?::?\s*|.)[1-9]*[0-9](?:\s*[a-zA-Z]|\s[a-zA-Z](?=\s))",
         r"[ABCD](?:[12][0-9]|[1-9])(?:\s*[/.,]?\s*(?:[12][0-9]|[1-9]))*(?:\.(?=\bverbinding_elementen_wet\b|\bregeling\b))?",
         r"H[1-9]?[0-9],[1-9]?[0-9]",
@@ -120,54 +145,138 @@ def match_patterns(text):
         r"[1-9]\.[1-9]?[0-9]:[1-9]?[0-9]",
         r"[1-9]*[0-9]?[a-z] [1-9]"
     ]
-    pattern_elementnummer = r"(" + "|".join(patterns_elementnummer) + ")"
+    # pt_elementnummer = r"(" + "|".join(patterns_elementnummer) + ")"
+    pt_elementnummer = r"([0-9]+)"
 
-    pattern_lidwoorden = r"(?:de|het)"
+    pt_lidwoorden = r"(?:de|het)?"
+    pt_opt_tussenvoegsel = rf"(?:van(?:\s+{pt_lidwoorden})?)?{pt_ws_0}"
+
+    pt_matches = "(" + "|".join(re.escape(match) for match in matches) + ")"
     
     patterns = [
-        # (r"Art(?:\.|ikel|icle) (\d+):(\d+) (.*?)", ["book", "article"]),
-        # (r"Art(?:\.|ikel|icle) (\d+) van (.*?)", ["article", "book"]),
-        # (r"Art(?:\.|ikel|icle) (\d+) van (.*?)", ["article", "book"]),
+        # "Artikel 5 van het boek 7 van het BW"
+        # "Artikel 5 boek 7 BW"
+        (rf"{pts_types['artikel']}{pt_ws}{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}{pt_ws}{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}?\s*{pt_matches}", ("article", "book_number", "book_name")),
 
-        (rf"{patterns_types['artikel']} {pattern_elementnummer} {patterns_types['boek']} {pattern_elementnummer}", )
+        # "Artikel 7:658 van het BW"
+        (rf"{pts_types['artikel']}{pt_ws}{pt_elementnummer}:{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
+        
+        # "Burgerlijk Wetboek Boek 7, Artikel 658"
+        (rf"{pt_matches}(?:{pt_ws}{pts_types['boek']}{pt_ws}{pt_elementnummer})?[,]?\s*{pts_types['artikel']}{pt_ws}{pt_elementnummer}", ("book_name", "book_number", "article")),
     ]
+    
+    results = []
 
     for pattern, keys in patterns:
-        match = re.search(pattern, text, flags=re.I)
-        if match:
-            # return dict(zip(keys, match.groups()))
-            # return match.groupdict() # for 
-            # return {key: match.group(key) for key in keys} # for named groups
-            return {keys[i]: match.group(i + 1) for i in range(len(keys))}
-    return None
+        # match = re.search(pattern, text, flags=re.IGNORECASE)
+        # if match:
+        #     return {keys[i]: match.group(i + 1) for i in range(len(keys))}
+        # print(pattern)
+        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+            results.append({
+                "span": match.span(),
+                "patterns": {keys[i]: match.group(i + 1) for i in range(len(keys))}
+            })
+    
+    return results
 
 if __name__ == "__main__":
     db_name = "database.db"
-    # prepare(db_name)
+    prepare(db_name)
 
     queries = [
         "Art. 7:658 BW",
         "Artikel 7:658 BW",
+        "Artikel 7:658 Burgerlijk Wetboek", # geen resultaat op linkeddata
+        "Artikel 7:658 van het BW", # geeft resultaat
+        "Artikel 7:658 van het BW boek 7", # geeft geen resultaat maar wel geldig
         "Artikel 658 van boek 7 van het Burgerlijk Wetboek",
+        "Artikel 658 van het boek 7 van het Burgerlijk Wetboek",
         "Burgerlijk Wetboek Boek 7, Artikel 658",
+        "Burgerlijk Wetboek, Artikel 658",
         "Artikel 658 van Boek 7 BW",
-        "Art. 7:658 van het Burgerlijk Wetboek", # geeft wel artikel
-        "artikel 123 van een Burgerlijk Wetboek" # geen artikel
+        "Art. 7:658 van het Burgerlijk Wetboek",
+        "Ik heb dat gelezen in art. 7:658 BW of in BW, artikel 5.",
+        "Burgerlijk Wetboek",
+
+        # van xslx ->
+        "Artikel 1:75 Wet op het financieel toezicht", # in ld
+        "Artikel 3 Wet ter voorkoming van witwassen en financieren van terrorisme (cliëntenonderzoek)", # in ld
+        "Artikel 16 Wet ter voorkoming van witwassen en financieren van terrorisme (FIU-meldplicht)",
+        "Artikel 61 Wet toezicht trustkantoren 2018 (publicatie bestuurlijke boete)"
+        "Artikel 3:2 Algemene wet bestuursrecht (zorgvuldigheidsbeginsel)"
+        "Artikel 3:2 Algemene wet bestuursrecht (zorgvuldigheidsbeginsel) + DNB OR AFM"
+        "Artikel 4:8 Algemene wet bestuursrecht (hoor en wederhoor)"
+        "Artikel 4:8 Algemene wet bestuursrecht (hoor en wederhoor) + DNB OR AFM"
     ]
 
     # results_good = []
     # results_bad = []
 
     for query in queries:
-        parts = match_patterns(query)
-        print("Parts: ", parts)
-
-        results = search(query, db_name)
+        aliases = find_aliases_in_text(query, db_name)
         print(f"Query: \"{query}\"")
-        print("Results:")
-        for result in results:
-            print(f"1) {result}")
+
+        # print("Results:")
+        # for i, alias in enumerate(aliases):
+        #     print(f"{i+1}) {alias}")
+
+        matches = match_patterns_regex(query, aliases)
+        if len(matches) == 0:
+            if len(aliases) == 0:
+                print("Oops! We didn't find any pattern matches nor did we find aliases. Skipping!")
+                continue
+            else:
+                print("Hmm. We didn't find any pattern matches but we did we find aliases! We'll continue with all of those.")
+                matches = []
+                for alias in aliases:
+                    span = (None, None)
+                    span_search = query.find(alias)
+                    if span_search > 0:
+                        span = (span_search, span_search+len(alias),)
+                    matches.append({
+                        "span": span,
+                        "patterns": {
+                            "book_name": alias,
+                            "book_number": None,
+                            "article": None
+                        }
+                    })
+
+        print("Matches:")
+        for i, match in enumerate(matches):
+            match["patterns"]["book_name"]
+            
+            book_name, book_number = match["patterns"]["book_name"], match["patterns"]["book_number"]
+
+            results = []
+            if book_name is None and book_number is None:
+                # article alone is not enough to retrieve books
+                pass
+            elif book_name is None and book_number is not None:
+                # search instances of '%boek {book_number}'
+                results = find_matching_aliases(f"{match['patterns']['book_name']} boek {match['patterns']['book_number']}", wildcard=('l'))
+                if len(results == 0):
+                    find_matching_aliases(f"{match['patterns']['book_name']}", wildcard=('l'))
+            elif book_name is not None and book_number is None:
+                # search instances of '{book_name}%' (like BW% will return BW 1, BW 2, ...)
+                results = find_matching_aliases(f"{match['patterns']['book_name']}", wildcard=('r'))
+
+            elif book_name is not None and book_number is not None:
+                # search instances of '{book_name} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
+                results = find_matching_aliases(f"{match['patterns']['book_name']} boek {match['patterns']['book_number']}", wildcard=('r'))
+
+            print(f"{i+1}) Match at character positions {match['span'][0]} to {match['span'][1]} of pattern {match}:")
+            if len(results) == 0:
+                print(" -> NO RESULTS (shouldn't happend)")
+            for result in results:
+                print(f" -> {result[0]} ({result[1]})")
+
+
         print()
 
-
-
+# TODO improvements:
+# - ensure that single matches are not part of words (such as "Burgerlijk Wetboek" matching "LI" -> Liftenbesluit, etc.)
+#   - ensure that matches in find_aliases_in_text are not part or words
+#   - ensure that when finding relevant wildcards in find_matching_aliases, it is either that or has a space
+# - for found matched aliases, search its id and return the longest alias given that id
