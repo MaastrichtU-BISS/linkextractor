@@ -75,7 +75,9 @@ def find_aliases_in_text(input_text, db_name="database.db"):
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
 
-    # input_text_escaped = re.sub(r'([_%])', r'\\\1', input_text)
+    # (wildcard) escaping of input not necessary since the input is the
+    # column in the where clause, not the value
+    # input_text_escaped = re.sub(r'([_%])', r'\\\1', input_text) 
 
     cursor.execute('''
         SELECT id, alias FROM aliases
@@ -87,7 +89,7 @@ def find_aliases_in_text(input_text, db_name="database.db"):
 
     results = []
     for row in cursor.fetchall():
-        if re.search(rf"\b{re.escape(row[1])}\b", input_text):
+        if re.search(rf"\b{re.escape(row[1])}\b", input_text, flags=re.IGNORECASE):
             results.append(row[1])
     
     conn.close()
@@ -174,21 +176,8 @@ def find_matching_aliases(name, wildcard=None, db_name="database.db"):
 
 
 def match_patterns_regex(text, matches: List[tuple]):
-    if False:
-        pass
-        # elementtype <- boek | deel | titeldeel | titel | hoofdstuk | afdeling | paragraaf | subparagraaf | artikel | bijlage | inhoudsopgave | aanwijzing
-        # boek <- "boek" | "bk" ?'.'
-        # deel <- "deel" | "dl" ?'.' | "onderdeel"
-        # titeldeel <- "titeldeel" | "tit" ?'el' 'd' ?'ee' 'l' ?'.'
-        # titel <- "titel" | "tit."
-        # hoofdstuk <- "hoofdstuk" | "h" ?'f' ?'d' ?'s' ?'t' ?'u' ?'k' ?'.'
-        # afdeling <- "afdeling" | "afdeeling" | "afd."
-        # paragraaf <- "paragraaf" | "par" ?'a' ?'g' ?'r' ?'aa' ?'f' ?'.'
-        # subparagraaf <- "subparagraaf" | "sub" ?'-' "par" ?'a' ?'g' ?'r' ?'aa' ?'f' ?'.'
-        # artikel <- ("artikel" ?'en' | "art" ?'t' ?'.') ?(':' ?sp '-')
-        # bijlage <- "bijlage" | "bijl" ?'.'
-        # inhoudsopgave <- "inh" ('ouds' | '.' | '-') "opg" ?'ave' ?'.'
-        # aanwijzing <- "aanwijzing"
+    if len(matches) == 0:
+        return []
 
     pt_ws_0 = "\s*"
     pt_ws = "\s+"
@@ -198,17 +187,18 @@ def match_patterns_regex(text, matches: List[tuple]):
         "artikel": r"(?:artikel(?:en)?|artt?\.?)"
     }
 
-    pt_elementnummer = [
-        r"(?:[1-9][.:])?(?:[1-9]?[0-9])?[a-zA-Z](?::?\s*|.)[1-9]*[0-9](?:\s*[a-zA-Z]|\s[a-zA-Z](?=\s))",
-        r"[ABCD](?:[12][0-9]|[1-9])(?:\s*[/.,]?\s*(?:[12][0-9]|[1-9]))*(?:\.(?=\bverbinding_elementen_wet\b|\bregeling\b))?",
-        r"H[1-9]?[0-9],[1-9]?[0-9]",
-        r"[IVXCLDM]+(?![A-Za-z])(?:-[A-Z])?(?:,[1-9]*[0-9]*[a-z])?",
-        r"[A-Z]?[ab]?\s*[1-9]?[0-9]?[a-z]?",
-        r"[ABCD](?![A-Za-z0-9/.,;])",
-        r"[1-9]\.[1-9]?[0-9]:[1-9]?[0-9]",
-        r"[1-9]*[0-9]?[a-z] [1-9]"
-    ]
-    # pt_elementnummer = r"(" + "|".join(patterns_elementnummer) + ")"
+    # from waxeye grammar:
+    # pts_elementnummer = [
+    #     r"(?:[1-9][.:])?(?:[1-9]?[0-9])?[a-zA-Z](?::?\s*|.)[1-9]*[0-9](?:\s*[a-zA-Z]|\s[a-zA-Z](?=\s))",
+    #     r"[ABCD](?:[12][0-9]|[1-9])(?:\s*[/.,]?\s*(?:[12][0-9]|[1-9]))*(?:\.(?=\bverbinding_elementen_wet\b|\bregeling\b))?",
+    #     r"H[1-9]?[0-9],[1-9]?[0-9]",
+    #     r"[IVXCLDM]+(?![A-Za-z])(?:-[A-Z])?(?:,[1-9]*[0-9]*[a-z])?",
+    #     r"[A-Z]?[ab]?\s*[1-9]?[0-9]?[a-z]?",
+    #     r"[ABCD](?![A-Za-z0-9/.,;])",
+    #     r"[1-9]\.[1-9]?[0-9]:[1-9]?[0-9]",
+    #     r"[1-9]*[0-9]?[a-z] [1-9]"
+    # ]
+    # pt_elementnummer = r"(" + "|".join(pts_elementnummer) + ")"
     pt_elementnummer = r"([0-9]+)"
 
     pt_lidwoorden = r"(?:de|het)?"
@@ -227,12 +217,10 @@ def match_patterns_regex(text, matches: List[tuple]):
         # "Artikel 7:658 van het BW"
         (rf"{pts_types['artikel']}{pt_ws}{pt_elementnummer}:{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
         
-        # "3:2 awb"
+        # "3:2 awb" -> also not parsed on linkeddata
         # (rf"{pt_elementnummer}:{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
         
         # "Burgerlijk Wetboek Boek 7, Artikel 658"
-        (rf"{pt_matches}(?:{pt_ws}{pts_types['boek']}{pt_ws}{pt_elementnummer})?[,]?\s*{pts_types['artikel']}{pt_ws}{pt_elementnummer}", ("book_name", "book_number", "article")),
-        
         (rf"{pt_matches}(?:{pt_ws}{pts_types['boek']}{pt_ws}{pt_elementnummer})?[,]?\s*{pts_types['artikel']}{pt_ws}{pt_elementnummer}", ("book_name", "book_number", "article")),
     ]
     
@@ -283,6 +271,8 @@ if __name__ == "__main__":
         "Verordening (EG) nr. 1618/1999",
     ]
 
+    queries = ["art 5:123 BW", "art 5:123 bw"]
+
     for query in queries:
         aliases = find_aliases_in_text(query, db_name)
         print(f"Query: \"{query}\"")
@@ -290,8 +280,9 @@ if __name__ == "__main__":
         print("Results:")
         for i, alias in enumerate(aliases):
             print(f"{i+1}) {alias}")
-
+        
         matches = match_patterns_regex(query, aliases)
+        
         if len(matches) == 0:
             if len(aliases) == 0:
                 print("Oops! We didn't find any pattern matches nor did we find aliases. Skipping!")
@@ -355,7 +346,9 @@ TODO improvements:
    [-] ensure that matches in find_aliases_in_text are not part or words
    - ensure that when finding relevant wildcards in find_matching_aliases, it is either that or has a space
  [-] for found matched aliases, search its id and return the longest alias given that id
- - nice output, with article if included (json)
+ - simpler implementation for only search
+ [-] nice output, with article if included (json)
+
  - performance, keep dataabse connection open
 
  Edge cases
