@@ -4,7 +4,9 @@ import sqlite3
 # set wrkdir
 import os
 import pathlib
-from typing import List
+from typing import List, Union
+from statistics import median
+from time import time
 script_dir = pathlib.Path(__file__).parent.resolve()
 os.chdir(script_dir)
 # end set wrkdir
@@ -31,6 +33,9 @@ def create_database(db_name):
             FOREIGN KEY (ref) REFERENCES refs(id) ON DELETE CASCADE
         )
     ''')
+
+    cursor.execute('CREATE INDEX idx_alias ON aliases(alias COLLATE NOCASE);')
+    cursor.execute('CREATE INDEX idx_ref ON aliases(ref);')
     
     conn.commit()
     conn.close()
@@ -153,21 +158,39 @@ def find_matching_aliases(name, wildcard=None, db_name="database.db"):
     # ''', (name_escaped,))
 
     # RUN 3 - gpt with window
+    # results = cursor.execute('''
+    #     WITH RankedAliases AS (
+    #     SELECT a.alias, r.name, a.ref,
+    #         MAX(CASE WHEN a.alias LIKE ? THEN 1 ELSE 0 END)
+    #         OVER (PARTITION BY a.ref) AS has_match,
+    #         ROW_NUMBER() OVER (PARTITION BY a.ref ORDER BY length(a.alias) DESC) AS rn
+    #         FROM aliases a
+    #         JOIN refs r ON a.ref = r.id
+    #     )
+    #     SELECT alias, name
+    #     FROM RankedAliases
+    #     WHERE has_match = 1
+    #     AND rn = 1
+    #     LIMIT 50;
+    # ''', (name_escaped,))
+
+    # RUN 4 - gpt optimized
     results = cursor.execute('''
         WITH RankedAliases AS (
-        SELECT a.alias, r.name, a.ref,
-            MAX(CASE WHEN a.alias LIKE ? THEN 1 ELSE 0 END)
-            OVER (PARTITION BY a.ref) AS has_match,
-            ROW_NUMBER() OVER (PARTITION BY a.ref ORDER BY length(a.alias) DESC) AS rn
+            SELECT a.alias, r.name, a.ref,
+                MAX(CASE WHEN a.alias LIKE ? THEN 1 ELSE 0 END)
+                OVER (PARTITION BY a.ref) AS has_match,
+                ROW_NUMBER() OVER (PARTITION BY a.ref ORDER BY length(a.alias) DESC) AS rn
             FROM aliases a
             JOIN refs r ON a.ref = r.id
+            WHERE a.alias LIKE ?  -- Move the filter here for efficiency
         )
         SELECT alias, name
         FROM RankedAliases
         WHERE has_match = 1
         AND rn = 1
         LIMIT 50;
-    ''', (name_escaped,))
+    ''', (name_escaped,name_escaped,))
 
     results = [row for row in cursor.fetchall()]
     conn.close()
@@ -175,8 +198,13 @@ def find_matching_aliases(name, wildcard=None, db_name="database.db"):
 
 
 
-def match_patterns_regex(text, matches: List[tuple]):
-    if len(matches) == 0:
+def match_patterns_regex(text, matches: Union[List[tuple], None] = None):
+    """
+    If matches is None: assume that the whole of text is the reference searching for
+    If matches is not None: assume list of possible matches and search against that
+    If matches is not None but empty: attempted to find matches but no matches to find against so return []
+    """
+    if matches is not None and len(matches) == 0:
         return []
 
     pt_ws_0 = "\s*"
@@ -204,7 +232,10 @@ def match_patterns_regex(text, matches: List[tuple]):
     pt_lidwoorden = r"(?:de|het)?"
     pt_opt_tussenvoegsel = rf"(?:van(?:\s+{pt_lidwoorden})?)?{pt_ws_0}"
 
-    pt_matches = "(" + "|".join(re.escape(match) for match in matches) + ")"
+    if matches is not None:
+        pt_matches = "(" + "|".join(re.escape(match) for match in matches) + ")"
+    else:
+        pt_matches = r"(.+?)"
     
     patterns = [
         # "Artikel 5 van het boek 7 van het BW"
@@ -227,6 +258,9 @@ def match_patterns_regex(text, matches: List[tuple]):
     results = []
 
     for pattern, keys in patterns:
+        if matches is None:
+            # if matches not passed, assume matching pattern from start to end of line
+            pattern = rf"^\s*{pattern}\s*$"
         for match in re.finditer(pattern, text, flags=re.IGNORECASE):
             results.append({
                 "span": match.span(),
@@ -234,6 +268,210 @@ def match_patterns_regex(text, matches: List[tuple]):
             })
     
     return results
+
+def query_in_text(query, db_name):
+    print(f"Query: \"{query}\"")
+
+    aliases = find_aliases_in_text(query, db_name)
+
+    print("Aliases:")
+    for i, alias in enumerate(aliases):
+        print(f"{i+1}) {alias}")
+    
+    matches = match_patterns_regex(query, aliases)
+    
+    if len(matches) == 0:
+        if len(aliases) == 0:
+            print("Oops! We didn't find any pattern matches nor did we find aliases. Skipping!")
+            return
+        else:
+            print("Hmm. We didn't find any pattern matches but we did we find aliases! We'll continue with all of those.")
+            matches = []
+            for alias in aliases:
+                span = (None, None)
+                span_search = query.find(alias)
+                if span_search > -1:
+                    span = (span_search, span_search+len(alias),)
+                matches.append({
+                    "span": span,
+                    "patterns": {
+                        "book_name": alias,
+                        "book_number": None,
+                        "article": None
+                    }
+                })
+
+    print("Matches:")
+    for i, match in enumerate(matches):
+        match["patterns"]["book_name"]
+        
+        book_name, book_number = match["patterns"]["book_name"], match["patterns"].get("book_number", None)
+
+        results = []
+        if book_name is None and book_number is None:
+            # article alone is not enough to retrieve books
+            pass
+        elif book_name is None and book_number is not None:
+            # search instances of '%boek {book_number}'
+            # shouldnt happen, should always have book name!!!
+            results = find_matching_aliases(f"boek {book_number}", wildcard=('l'))
+
+        elif book_name is not None and book_number is None:
+            # search instances of '{book_name}%' (like BW% will return BW 1, BW 2, ...)
+            results = find_matching_aliases(book_name, wildcard=('r'))
+
+        elif book_name is not None and book_number is not None:
+            # search instances of '{book_name} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
+            results = find_matching_aliases(f"{book_name} boek {book_number}", wildcard=('r'))
+            if len(results) == 0:
+                results = find_matching_aliases(book_name, wildcard=('r'))
+
+        print(f"{i+1}) Match at character positions {match['span'][0]} to {match['span'][1]} of pattern {match}:")
+        if len(results) == 0:
+            print(" -> NO RESULTS (shouldn't happend)")
+        else:
+            for result in results:
+                print(f" -> {result[0]} ({result[1]})")
+    print()
+    
+def query_exact(query, db_name):
+    results = []
+    with sqlite3.connect(db_name) as db:
+        # print(f"Query: \"{query}\"")
+
+        matches = match_patterns_regex(query)
+        for i, match in enumerate(matches):
+            print(i, match)
+            if not 'book_name' in match['patterns']:
+                continue
+        
+            book_name, book_number = match["patterns"]["book_name"], match["patterns"].get("book_number", None)
+
+            aliases = []
+            if book_name is None and book_number is None:
+                # article alone is not enough to retrieve books
+                pass
+            elif book_name is None and book_number is not None:
+                # search instances of '%boek {book_number}'
+                # shouldnt happen, should always have book name!!!
+                aliases = find_matching_aliases(f"boek {book_number}", wildcard=('l'))
+
+            elif book_name is not None and book_number is None:
+                # search instances of '{book_name}%' (like BW% will return BW 1, BW 2, ...)
+                aliases = find_matching_aliases(book_name, wildcard=('r'))
+
+            elif book_name is not None and book_number is not None:
+                # search instances of '{book_name} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
+                aliases = find_matching_aliases(f"{book_name} boek {book_number}", wildcard=('r'))
+                if len(aliases) == 0:
+                    aliases = find_matching_aliases(book_name, wildcard=('r'))
+
+            # print(f"{i+1}) Match at character positions {match['span'][0]} to {match['span'][1]} of pattern {match}:")
+            if len(aliases) == 0:
+                # print(" -> NO RESULTS (shouldn't happend)")
+                pass
+            else:
+                for alias in aliases:
+                    result = {
+                        'resource': {
+                            'name': alias[0],
+                            'id': alias[1]
+                        }
+                    }
+                    if 'article' in match['patterns']:
+                        result['article'] = match['patterns']['article']
+                    if 'book_number' in match['patterns']:
+                        result['book'] = match['patterns']['book_number']
+                    results.append(result)
+                    # print(f" -> {alias[0]} ({alias[1]})")
+
+
+
+
+
+            continue
+            
+            # Find all aliases that are connected to this alias (case-insensitive)
+            cursor = db.cursor()
+            # cursor.execute("SELECT * FROM aliases WHERE ref IN (SELECT ref FROM aliases WHERE alias = ? COLLATE NOCASE) GROUP BY LOWER(alias)", (match['patterns']['book_name'],))
+            cursor.execute('''
+                SELECT a1.*
+                FROM aliases a1
+                JOIN aliases a2 ON a1.ref = a2.ref
+                WHERE a2.alias = ? COLLATE NOCASE
+                GROUP BY LOWER(a1.alias);
+            ''', (match['patterns']['book_name'],))
+            # cursor.execute('SELECT DISTINCT * FROM aliases a1 JOIN aliases a2 ON a1.ref = a2.ref WHERE a2.alias = ? COLLATE NOCASE;', (match['patterns']['book_name'],))
+
+            for result in cursor.fetchall():
+                print(result)
+            
+                # results = find_matching_aliases(match['book_name'])
+            print(matches)
+
+            print()
+    return results
+
+"""
+def construct_permutations_given_text(match):
+    pt_ws_0 = "\s*" # -> 2
+    pt_ws = "\s+" # -> 1
+    pts_types = {
+        "boek": r"(?:boek|bk\.?)", # -> 3
+        # ...,
+        "artikel": r"(?:artikel(?:en)?|artt?\.?)" # -> 6
+    }
+    pt_elementnummer = r"([0-9]+)" # -> fixed
+    pt_lidwoorden = r"(?:de|het)?" # -> 2
+    pt_opt_tussenvoegsel = rf"(?:van(?:\s+{pt_lidwoorden})?)?{pt_ws_0}" # -> 1*2*2 = 4
+    patterns = [
+        # "Artikel 5 van het boek 7 van het BW"
+        # "Artikel 5 boek 7 BW"
+        (rf"{pts_types['artikel']}{pt_ws}{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}{pt_ws}{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}?{pt_ws_0}{pt_matches}", ("article", "book_number", "book_name")),
+        # -> 6 * 1 * 1 * 1 * 4 * 3 * 1 * 1 * 1 * 4 * 1 * n = 576*n 
+
+        # "Artikel 61 Wet toezicht trustkantoren 2018"
+        (rf"{pts_types['artikel']}{pt_ws}{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("article", "book_name")),
+        # -> 6 * 1 * 1 * 1 * 4 * 3*2 * 2 * n = 288*n
+
+        # "Artikel 7:658 van het BW"
+        (rf"{pts_types['artikel']}{pt_ws}{pt_elementnummer}:{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
+        # -> 3 * 1 * 1 * 1 * 4 * 3*2 * 2 * n = 72*n
+        
+        # "3:2 awb" -> also not parsed on linkeddata
+        # (rf"{pt_elementnummer}:{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
+        
+        # "Burgerlijk Wetboek Boek 7, Artikel 658"
+        (rf"{pt_matches}(?:{pt_ws}{pts_types['boek']}{pt_ws}{pt_elementnummer})?[,]?{pt_ws_0}{pts_types['artikel']}{pt_ws}{pt_elementnummer}", ("book_name", "book_number", "article")),
+        # -> n * (1*3*1*1)*2 *2 *2*6*1*1 = 144*n
+    ]
+
+    # Aantal patronen = 576*n + 288*n + 72*n + 144*n = 1080*n, waar n = aantal aliasen
+    # Voor BW, waar totaal 41 aliasen over 10 ID's zijn gevonden lijdt dit tot een union van 44280
+    pass
+"""
+
+"""
+def find_ambiguous_aliases():
+    dic = {}
+    with open("./data/copied/regeling-aanduiding.trie", 'r', encoding='utf-8') as file:
+        for line in file:
+            parts = line.strip().split(" <- ")
+            if len(parts) != 2:
+                continue
+            id_name, aliases = parts
+            alias_list = aliases.split("\t")
+            for alias in alias_list:
+                if alias not in dic:
+                    dic[alias] = [id_name]
+                elif not id_name in dic[alias]:
+                    dic[alias].append(id_name)
+    ambiguous = {k: v for k, v in dic.items() if len(v) > 1}
+    ambiguous = dict(sorted(ambiguous.items(), key=lambda item: -len(item[1])))
+    for amb_alias, amb_ids in ambiguous.items():
+        print(f"Ambiguous alias: '{amb_alias}', belongs to {len(amb_ids)} ids: {', '.join(amb_ids)}")
+    exit()
+"""
 
 if __name__ == "__main__":
     db_name = "database.db"
@@ -271,73 +509,38 @@ if __name__ == "__main__":
         "Verordening (EG) nr. 1618/1999",
     ]
 
-    queries = ["art 5:123 BW", "art 5:123 bw"]
+    queries = [
+        "Artikel 3 Wet ter voorkoming van witwassen en financieren van terrorisme (cliëntenonderzoek)",
+        "Artikel 61 Wet toezicht trustkantoren 2018 (publicatie bestuurlijke boete)"
+    ]
 
-    for query in queries:
-        aliases = find_aliases_in_text(query, db_name)
-        print(f"Query: \"{query}\"")
+    for i, query in enumerate(queries):
+        print(f"{i}) Query: \"{query}\"")
 
-        print("Results:")
-        for i, alias in enumerate(aliases):
-            print(f"{i+1}) {alias}")
-        
-        matches = match_patterns_regex(query, aliases)
-        
-        if len(matches) == 0:
-            if len(aliases) == 0:
-                print("Oops! We didn't find any pattern matches nor did we find aliases. Skipping!")
-                continue
-            else:
-                print("Hmm. We didn't find any pattern matches but we did we find aliases! We'll continue with all of those.")
-                matches = []
-                for alias in aliases:
-                    span = (None, None)
-                    span_search = query.find(alias)
-                    if span_search > -1:
-                        span = (span_search, span_search+len(alias),)
-                    matches.append({
-                        "span": span,
-                        "patterns": {
-                            "book_name": alias,
-                            "book_number": None,
-                            "article": None
-                        }
-                    })
-
-        print("Matches:")
-        for i, match in enumerate(matches):
-            match["patterns"]["book_name"]
-            
-            book_name, book_number = match["patterns"]["book_name"], match["patterns"].get("book_number", None)
-
-            results = []
-            if book_name is None and book_number is None:
-                # article alone is not enough to retrieve books
-                pass
-            elif book_name is None and book_number is not None:
-                # search instances of '%boek {book_number}'
-                # shouldnt happen, should always have book name!!!
-                results = find_matching_aliases(f"boek {book_number}", wildcard=('l'))
-
-            elif book_name is not None and book_number is None:
-                # search instances of '{book_name}%' (like BW% will return BW 1, BW 2, ...)
-                results = find_matching_aliases(book_name, wildcard=('r'))
-
-            elif book_name is not None and book_number is not None:
-                # search instances of '{book_name} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
-                results = find_matching_aliases(f"{book_name} boek {book_number}", wildcard=('r'))
-                if len(results) == 0:
-                    results = find_matching_aliases(book_name, wildcard=('r'))
-
-            print(f"{i+1}) Match at character positions {match['span'][0]} to {match['span'][1]} of pattern {match}:")
-            if len(results) == 0:
-                print(" -> NO RESULTS (shouldn't happend)")
-            else:
-                for result in results:
-                    print(f" -> {result[0]} ({result[1]})")
-
+        times = []
+        iterations = 10
+        for _ in range(iterations):
+            time_s = time()
+            query_in_text(query, db_name)
+            # results = query_exact(query, db_name)
+            times.append(time() - time_s)
+        print("  Search performance:")
+        print(f"  - Iterations:  {iterations}")
+        print(f"  - Min time:    {round(min(times), 3)}")
+        print(f"  - Mean time:   {round(sum(times) / len(times), 3)}")
+        print(f"  - Median time: {round(median(times), 3)}")
+        print(f"  - Max time:    {round(max(times), 3)}")
         print()
-    
+
+        if len(results) > 0:
+            print("  Results:")
+            for i, result in enumerate(results):
+                print(f"  - Result {i}: {result}")
+            print()
+        print()
+        
+        # break
+
     # a = find_matching_aliases(f"Algemene wet bestuursrecht", wildcard=('r'))
     
 """
