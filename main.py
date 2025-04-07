@@ -412,6 +412,8 @@ def query_in_text(query, db_name):
     
     matches = match_patterns_regex(query, aliases)
     
+    end_results = []
+
     if len(matches) == 0:
         if len(aliases) == 0:
             print("Oops! We didn't find any pattern matches nor did we find aliases. Skipping!")
