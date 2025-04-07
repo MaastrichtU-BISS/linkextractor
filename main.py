@@ -635,15 +635,33 @@ if __name__ == "__main__":
         "Artikel 3:2 Algemene wet bestuursrecht (zorgvuldigheidsbeginsel) + DNB OR AFM",
         "3:2 awb",
 
-        "Artikel 4:8 Algemene wet bestuursrecht (hoor en wederhoor)",
+        "Artikel 4:8 Algemene wet bestuursrecht (hoor en wederhoor)", # <-- article is "4:8" ? but could also be interpreted as book 4 article 8
         "4:8 Awb",
 
         "Verordening (EG) nr. 1618/1999",
+
+        "Artikel 7.4 WHW",
+        "Artikel 7.12B WHW",
+        "Artikel 7.28 WHW",
+        "Artikel 7.30b WHW",
+        "Artikel 7.57H WHW",
+        "Artikel 7.61 WHW",
+        "Artikel 9.19 WHW",
+        "5:1 BW",
+        "art. 1 Wet gelijke behandeling op grond van handicap of chronische ziekte",
     ]
 
+    # TODO:
+    # 1 and 2: longest substring search
+    # 3: implement rule for 5:1 BW
+    # 4: extend article patterns to include dots and have alphanumerical suffixes
     queries = [
         "Artikel 3 Wet ter voorkoming van witwassen en financieren van terrorisme (cliëntenonderzoek)",
-        "Artikel 61 Wet toezicht trustkantoren 2018 (publicatie bestuurlijke boete)"
+        "Artikel 61 Wet toezicht trustkantoren 2018 (publicatie bestuurlijke boete)",
+        "5:1 BW",
+        "Artikel 7.12B WHW",
+        "Artikel 4:8 Algemene wet bestuursrecht (hoor en wederhoor)",
+        "Artikel 4:8 AWB"
     ]
 
     for i, query in enumerate(queries):
@@ -653,15 +671,15 @@ if __name__ == "__main__":
         iterations = 10
         for _ in range(iterations):
             time_s = time()
-            query_in_text(query, db_name)
-            # results = query_exact(query, db_name)
+            # results = query_in_text(query, db_name)
+            results = query_exact(query, db_name)
             times.append(time() - time_s)
         print("  Search performance:")
         print(f"  - Iterations:  {iterations}")
-        print(f"  - Min time:    {round(min(times), 3)}")
-        print(f"  - Mean time:   {round(sum(times) / len(times), 3)}")
-        print(f"  - Median time: {round(median(times), 3)}")
-        print(f"  - Max time:    {round(max(times), 3)}")
+        print(f"  - Min time:    {round(min(times), 5)}")
+        print(f"  - Mean time:   {round(sum(times) / len(times), 5)}")
+        print(f"  - Median time: {round(median(times), 5)}")
+        print(f"  - Max time:    {round(max(times), 5)}")
         print()
 
         if len(results) > 0:
@@ -669,6 +687,8 @@ if __name__ == "__main__":
             for i, result in enumerate(results):
                 print(f"  - Result {i}: {result}")
             print()
+        else:
+            print("  No results.")
         print()
         
         # break
