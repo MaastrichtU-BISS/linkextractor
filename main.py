@@ -1,5 +1,6 @@
 import re
 import sqlite3
+import exrex
 
 # set wrkdir
 import os
@@ -7,6 +8,7 @@ import pathlib
 from typing import List, Union
 from statistics import median
 from time import time
+
 script_dir = pathlib.Path(__file__).parent.resolve()
 os.chdir(script_dir)
 # end set wrkdir
@@ -543,7 +545,7 @@ def query_exact(query: str, db_name="database.db"):
     return results
 
 """
-def construct_permutations_given_text(match):
+def construct_permutations_given_text_old(matches, number):
     pt_ws_0 = "\s*" # -> 2
     pt_ws = "\s+" # -> 1
     pts_types = {
@@ -551,35 +553,106 @@ def construct_permutations_given_text(match):
         # ...,
         "artikel": r"(?:artikel(?:en)?|artt?\.?)" # -> 6
     }
-    pt_elementnummer = r"([0-9]+)" # -> fixed
     pt_lidwoorden = r"(?:de|het)?" # -> 2
     pt_opt_tussenvoegsel = rf"(?:van(?:\s+{pt_lidwoorden})?)?{pt_ws_0}" # -> 1*2*2 = 4
+
+    pt_matches = "(" + "|".join(re.escape(match) for match in matches) + ")" # -> n (len(matches))
+
+    pt_elementnummer = r"([0-9]+)" # -> 10
+    
+    pt_nr_boek = r"([0-9]+)" # -> 
+    if numbers['book']:
+        pt_nr_boek = "(" + "|".join(re.escape(n) for n in numbers['book']) + ")" # <- typically 1
+    
+    pt_nr_artikel = r"(\d+(?:\.\d+)?[a-zA-Z]?(?:-[a-zA-Z0-9]+)?)" # matches: 1, 1.12, 1.2a, 1b, 1b-c, 1-2
+    if numbers['article']:
+        pt_nr_artikel = "(" + "|".join(re.escape(n) for n in numbers['article']) + ")" # <- typically 1
+
     patterns = [
         # "Artikel 5 van het boek 7 van het BW"
         # "Artikel 5 boek 7 BW"
-        (rf"{pts_types['artikel']}{pt_ws}{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}{pt_ws}{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}?{pt_ws_0}{pt_matches}", ("article", "book_number", "book_name")),
+        (rf"{pts_types['artikel']}{pt_ws}{pt_nr_artikel}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}{pt_ws}{pt_nr_boek}{pt_ws}{pt_opt_tussenvoegsel}?{pt_ws_0}{pt_matches}", ("article", "book_number", "book_name")),
         # -> 6 * 1 * 1 * 1 * 4 * 3 * 1 * 1 * 1 * 4 * 1 * n = 576*n 
 
         # "Artikel 61 Wet toezicht trustkantoren 2018"
-        (rf"{pts_types['artikel']}{pt_ws}{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("article", "book_name")),
+        (rf"{pts_types['artikel']}{pt_ws}{pt_nr_artikel}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("article", "book_name")),
         # -> 6 * 1 * 1 * 1 * 4 * 3*2 * 2 * n = 288*n
 
         # "Artikel 7:658 van het BW"
-        (rf"{pts_types['artikel']}{pt_ws}{pt_elementnummer}:{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
+        (rf"{pts_types['artikel']}{pt_ws}{pt_nr_boek}:{pt_nr_artikel}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
         # -> 3 * 1 * 1 * 1 * 4 * 3*2 * 2 * n = 72*n
         
         # "3:2 awb" -> also not parsed on linkeddata
         # (rf"{pt_elementnummer}:{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
         
         # "Burgerlijk Wetboek Boek 7, Artikel 658"
-        (rf"{pt_matches}(?:{pt_ws}{pts_types['boek']}{pt_ws}{pt_elementnummer})?[,]?{pt_ws_0}{pts_types['artikel']}{pt_ws}{pt_elementnummer}", ("book_name", "book_number", "article")),
+        (rf"{pt_matches}(?:{pt_ws}{pts_types['boek']}{pt_ws}{pt_nr_boek})?[,]?{pt_ws_0}{pts_types['artikel']}{pt_ws}{pt_nr_artikel}", ("book_name", "book_number", "article")),
         # -> n * (1*3*1*1)*2 *2 *2*6*1*1 = 144*n
     ]
+
+    total_regex = "(?:" + ")|(".join([p[0] for p in patterns]) + ")"
+
+    return total_regex
 
     # Aantal patronen = 576*n + 288*n + 72*n + 144*n = 1080*n, waar n = aantal aliasen
     # Voor BW, waar totaal 41 aliasen over 10 ID's zijn gevonden lijdt dit tot een union van 44280
     pass
 """
+
+# """
+def construct_permutations_given_text(matches, numbers):
+    pt_ws_0 = "[ ]?" # -> 2
+    pt_ws = "[ ]" # -> 1
+    pts_types = {
+        "boek": r"(?:boek|bk\.?)", # -> 3
+        # ...,
+        "artikel": r"(?:artikel(?:en)?|artt?\.?)" # -> 6
+    }
+    pt_lidwoorden = r"(?:de|het)" # -> 2
+    pt_opt_tussenvoegsel = rf"(?:{pt_ws}van(?:{pt_ws}{pt_lidwoorden})?)?" # -> 1*2*2 = 4
+
+    pt_matches = "(" + "|".join(re.escape(match) for match in matches) + ")" # -> n (len(matches))
+
+    pt_elementnummer = r"([0-9]+)" # -> 10
+    
+    pt_nr_boek = r"([0-9]+)" # -> 
+    if numbers['book']:
+        pt_nr_boek = "(" + "|".join(re.escape(n) for n in numbers['book']) + ")" # <- typically 1
+    
+    pt_nr_artikel = r"(\d+(?:\.\d+)?[a-zA-Z]?(?:-[a-zA-Z0-9]+)?)" # matches: 1, 1.12, 1.2a, 1b, 1b-c, 1-2
+    if numbers['article']:
+        pt_nr_artikel = "(" + "|".join(re.escape(n) for n in numbers['article']) + ")" # <- typically 1
+
+    patterns = [
+        # "Artikel 5 van het boek 7 van het BW"
+        # "Artikel 5 boek 7 BW"
+        (rf"{pts_types['artikel']}{pt_ws}{pt_nr_artikel}{pt_opt_tussenvoegsel}{pt_ws}{pts_types['boek']}{pt_ws}{pt_nr_boek}{pt_opt_tussenvoegsel}{pt_ws}{pt_matches}", ("article", "book_number", "book_name")),
+        # -> 6 * 1 * 1 * 1 * 4 * 3 * 1 * 1 * 1 * 4 * 1 * n = 576*n 
+
+        # "Artikel 61 Wet toezicht trustkantoren 2018"
+        (rf"{pts_types['artikel']}{pt_ws}{pt_nr_artikel}{pt_opt_tussenvoegsel}{pt_ws}(?:{pts_types['boek']}{pt_ws})?{pt_matches}", ("article", "book_name")),
+        # -> 6 * 1 * 1 * 1 * 4 * 3*2 * 2 * n = 288*n
+
+        # "Artikel 7:658 van het BW"
+        (rf"{pts_types['artikel']}{pt_ws}{pt_nr_boek}:{pt_nr_artikel}{pt_opt_tussenvoegsel}{pt_ws}(?:{pts_types['boek']}{pt_ws})?{pt_matches}", ("book_number", "article", "book_name")),
+        # -> 3 * 1 * 1 * 1 * 4 * 3*2 * 2 * n = 72*n
+        
+        # "3:2 awb" -> also not parsed on linkeddata
+        # (rf"{pt_elementnummer}:{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
+        
+        # "Burgerlijk Wetboek Boek 7, Artikel 658"
+        (rf"{pt_matches}(?:{pt_ws}{pts_types['boek']}{pt_ws}{pt_nr_boek})?(?:[,]{pt_ws_0}|{pt_ws}){pts_types['artikel']}{pt_ws}{pt_nr_artikel}", ("book_name", "book_number", "article")),
+        # -> n * (1*3*1*1)*2 *2 *2*6*1*1 = 144*n
+    ]
+
+    total_regex = "(?:" + ")|(".join([p[0] for p in patterns]) + ")"
+
+    return total_regex
+
+    # Aantal patronen = 576*n + 288*n + 72*n + 144*n = 1080*n, waar n = aantal aliasen
+    # Voor BW, waar totaal 41 aliasen over 10 ID's zijn gevonden lijdt dit tot een union van 44280
+    pass
+# """
 
 """
 def find_ambiguous_aliases():
@@ -606,6 +679,50 @@ def find_ambiguous_aliases():
 if __name__ == "__main__":
     db_name = "database.db"
     prepare(db_name)
+
+    ## START GET PERMUTATIONS 
+    query = "Art 5:1 BW"
+
+    exact_matches = query_exact(query, db_name)
+
+    exact_aliases = []
+    numbers = {
+        'book': [],
+        'article': [],
+    }
+
+    for exact_match in exact_matches:
+        if exact_match['article'] and exact_match['article'] not in numbers['article']:
+            numbers['article'].append(exact_match['article'])
+        if exact_match['book'] and exact_match['book'] not in numbers['book']:
+            numbers['book'].append(exact_match['book'])
+        
+        aliases = get_aliases_of_ids(exact_match['resource']['id'])
+        for alias in aliases:
+            exact_aliases.append(alias)
+
+    large_regex = construct_permutations_given_text(exact_aliases, numbers)
+    print(large_regex)
+
+    # writings = list(exrex.generate(large_regex, 1))
+    # for (i, writing) in enumerate(writings):
+    #     print(i, writing)
+
+    print("AMOUNT", exrex.count(large_regex, 2))
+
+    i = 1
+    for writing in exrex.generate(large_regex, 2):
+        # print(writing)
+        print(i, writing)
+        i+=1
+
+        if i>10000:
+            break
+
+    # print(regex)
+
+    exit()
+    ## END GET PERM.
 
     queries = [
         "Art. 7:658 BW",
