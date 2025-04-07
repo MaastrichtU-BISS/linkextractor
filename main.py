@@ -345,7 +345,8 @@ def match_patterns_regex(text, matches: Union[List[tuple], None] = None):
     #     r"[1-9]*[0-9]?[a-z] [1-9]"
     # ]
     # pt_elementnummer = r"(" + "|".join(pts_elementnummer) + ")"
-    pt_elementnummer = r"([0-9]+)"
+    pt_nr_boek = r"([0-9]+)"
+    pt_nr_artikel = r"(\d+(?:\.\d+)?[a-zA-Z]?(?:-[a-zA-Z0-9]+)?)" # matches: 1, 1.12, 1.2a, 1b, 1b-c, 1-2
 
     pt_lidwoorden = r"(?:de|het)?"
     pt_opt_tussenvoegsel = rf"(?:van(?:\s+{pt_lidwoorden})?)?{pt_ws_0}"
@@ -358,19 +359,32 @@ def match_patterns_regex(text, matches: Union[List[tuple], None] = None):
     patterns = [
         # "Artikel 5 van het boek 7 van het BW"
         # "Artikel 5 boek 7 BW"
-        (rf"{pts_types['artikel']}{pt_ws}{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}{pt_ws}{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}?{pt_ws_0}{pt_matches}", ("article", "book_number", "book_name")),
+        (
+            rf"{pts_types['artikel']}{pt_ws}{pt_nr_artikel}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}{pt_ws}{pt_nr_boek}{pt_ws}{pt_opt_tussenvoegsel}?{pt_ws_0}{pt_matches}",
+            ("article", "book_number", "book_name",)
+        ),
 
         # "Artikel 61 Wet toezicht trustkantoren 2018"
-        (rf"{pts_types['artikel']}{pt_ws}{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("article", "book_name")),
+        (
+            rf"{pts_types['artikel']}{pt_ws}{pt_nr_artikel}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}",
+            ("article", "book_name",)
+        ),
 
         # "Artikel 7:658 van het BW"
-        (rf"{pts_types['artikel']}{pt_ws}{pt_elementnummer}:{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
-        
-        # "3:2 awb" -> also not parsed on linkeddata
-        # (rf"{pt_elementnummer}:{pt_elementnummer}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
+        (
+            rf"{pts_types['artikel']}{pt_ws}{pt_nr_boek}:{pt_nr_artikel}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}",
+            ("book_number", "article", "book_name",)
+        ),
         
         # "Burgerlijk Wetboek Boek 7, Artikel 658"
-        (rf"{pt_matches}(?:{pt_ws}{pts_types['boek']}{pt_ws}{pt_elementnummer})?[,]?\s*{pts_types['artikel']}{pt_ws}{pt_elementnummer}", ("book_name", "book_number", "article")),
+        (
+            rf"{pt_matches}(?:{pt_ws}{pts_types['boek']}{pt_ws}{pt_nr_boek})?[,]?\s*{pts_types['artikel']}{pt_ws}{pt_nr_artikel}",
+            ("book_name", "book_number", "article",)
+        ),
+        
+        # "3:2 awb" -> also not parsed on linkeddata
+        # TODO: make this only match if not other match found???
+        (rf"{pt_nr_boek}:{pt_nr_artikel}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
     ]
     
     results = []
