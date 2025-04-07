@@ -463,42 +463,64 @@ def query_in_text(query, db_name):
             print(" -> NO RESULTS (shouldn't happend)")
         else:
             for result in results:
+                end_results.append(result)
                 print(f" -> {result[0]} ({result[1]})")
     print()
+    return end_results
     
-def query_exact(query, db_name):
+def query_exact(query: str, db_name="database.db"):
+    query = query.strip()
     results = []
-    with sqlite3.connect(db_name) as db:
-        # print(f"Query: \"{query}\"")
 
-        matches = match_patterns_regex(query)
+    matches = match_patterns_regex(query)
+    if len(matches) == 0:
+        aliases = find_matching_aliases(query, wildcard=('l', 'r'))
+        if len(aliases) == 0:
+            found = find_longest_alias_in_substring(query)
+            aliases = [found] if found is not None else []
+        
+        for alias in aliases:
+            result = {
+                'resource': {
+                    'name': alias[0],
+                    'id': alias[1]
+                }
+            }
+    else:
         for i, match in enumerate(matches):
-            print(i, match)
             if not 'book_name' in match['patterns']:
                 continue
         
             book_name, book_number = match["patterns"]["book_name"], match["patterns"].get("book_number", None)
 
             aliases = []
-            if book_name is None and book_number is None:
-                # article alone is not enough to retrieve books
-                pass
-            elif book_name is None and book_number is not None:
-                # search instances of '%boek {book_number}'
-                # shouldnt happen, should always have book name!!!
-                aliases = find_matching_aliases(f"boek {book_number}", wildcard=('l'))
+            if book_name is None:
+                if book_number is None:
+                    # article alone is (currently) not enough to retrieve books
+                    pass
+                elif book_name is None and book_number is not None:
+                    # search instances of '%boek {book_number}'
+                    # shouldnt happen, should always have book name!!!
+                    aliases = find_matching_aliases(f"boek {book_number}", wildcard=('l'))
 
-            elif book_name is not None and book_number is None:
-                # search instances of '{book_name}%' (like BW% will return BW 1, BW 2, ...)
-                aliases = find_matching_aliases(book_name, wildcard=('r'))
-
-            elif book_name is not None and book_number is not None:
-                # search instances of '{book_name} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
-                aliases = find_matching_aliases(f"{book_name} boek {book_number}", wildcard=('r'))
-                if len(aliases) == 0:
+            elif book_name is not None:
+                if book_number is None:
+                    # search instances of '{book_name}%' (like BW% will return BW 1, BW 2, ...)
                     aliases = find_matching_aliases(book_name, wildcard=('r'))
 
-            # print(f"{i+1}) Match at character positions {match['span'][0]} to {match['span'][1]} of pattern {match}:")
+                elif book_number is not None:
+                    # search instances of '{book_name} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
+                    aliases = find_matching_aliases(f"{book_name} boek {book_number}", wildcard=('r'))
+                    if len(aliases) == 0:
+                        # search without 'boek {nr}' suffix
+                        aliases = find_matching_aliases(book_name, wildcard=('r'))
+                
+                if len(aliases) == 0:
+                    # if above both didnt lead to results, perform substring match
+                    # this (temporarily) fixes 
+                    found = find_longest_alias_in_substring(book_name)
+                    aliases = [found] if found is not None else aliases
+
             if len(aliases) == 0:
                 # print(" -> NO RESULTS (shouldn't happend)")
                 pass
@@ -515,33 +537,7 @@ def query_exact(query, db_name):
                     if 'book_number' in match['patterns']:
                         result['book'] = match['patterns']['book_number']
                     results.append(result)
-                    # print(f" -> {alias[0]} ({alias[1]})")
 
-
-
-
-
-            continue
-            
-            # Find all aliases that are connected to this alias (case-insensitive)
-            cursor = db.cursor()
-            # cursor.execute("SELECT * FROM aliases WHERE ref IN (SELECT ref FROM aliases WHERE alias = ? COLLATE NOCASE) GROUP BY LOWER(alias)", (match['patterns']['book_name'],))
-            cursor.execute('''
-                SELECT a1.*
-                FROM aliases a1
-                JOIN aliases a2 ON a1.ref = a2.ref
-                WHERE a2.alias = ? COLLATE NOCASE
-                GROUP BY LOWER(a1.alias);
-            ''', (match['patterns']['book_name'],))
-            # cursor.execute('SELECT DISTINCT * FROM aliases a1 JOIN aliases a2 ON a1.ref = a2.ref WHERE a2.alias = ? COLLATE NOCASE;', (match['patterns']['book_name'],))
-
-            for result in cursor.fetchall():
-                print(result)
-            
-                # results = find_matching_aliases(match['book_name'])
-            print(matches)
-
-            print()
     return results
 
 """
