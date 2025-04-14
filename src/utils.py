@@ -1,7 +1,7 @@
 from typing import Union, List
 import sqlite3
 import re
-from patterns import PT
+from src.patterns import PT
 
 def find_aliases_in_text(input_text, db_name="database.db"):
     # performs WHERE ? LIKE column, instead of WHERE column LIKE ?

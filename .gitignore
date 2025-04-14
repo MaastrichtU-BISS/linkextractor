@@ -4,3 +4,4 @@ data/dynamic/*
 !data/dynamic/.gitkeep
 database.db
 .env
+.pytest_cache

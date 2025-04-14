@@ -1,4 +1,4 @@
-from utils import *
+from src.utils import *
 
 def query_in_text(query, db_name):
     print(f"Query: \"{query}\"")
