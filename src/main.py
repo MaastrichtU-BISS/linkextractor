@@ -67,7 +67,7 @@ if __name__ == "__main__":
         "art. 1 Wet gelijke behandeling op grond van handicap of chronische ziekte",
 
         "art. 2:346 lid 1, aanhef en onder e BW",
-        
+        "Burgerlijk Wetboek Boek 7, Artikel 658"
     ]
 
     # TODO:

@@ -1,6 +1,7 @@
 from typing import Union, List
 import sqlite3
 import re
+from patterns import PT
 
 def find_aliases_in_text(input_text, db_name="database.db"):
     # performs WHERE ? LIKE column, instead of WHERE column LIKE ?
@@ -250,67 +251,7 @@ def match_patterns_regex(text, matches: Union[List[tuple], None] = None):
     if matches is not None and len(matches) == 0:
         return []
 
-    pt_ws_0 = "\s*"
-    pt_ws = "\s+"
-    pts_types = {
-        "boek": r"(?:boek|bk\.?)",
-        # ...,
-        "artikel": r"(?:artikel(?:en)?|artt?\.?)"
-    }
-
-    # from waxeye grammar:
-    # pts_elementnummer = [
-    #     r"(?:[1-9][.:])?(?:[1-9]?[0-9])?[a-zA-Z](?::?\s*|.)[1-9]*[0-9](?:\s*[a-zA-Z]|\s[a-zA-Z](?=\s))",
-    #     r"[ABCD](?:[12][0-9]|[1-9])(?:\s*[/.,]?\s*(?:[12][0-9]|[1-9]))*(?:\.(?=\bverbinding_elementen_wet\b|\bregeling\b))?",
-    #     r"H[1-9]?[0-9],[1-9]?[0-9]",
-    #     r"[IVXCLDM]+(?![A-Za-z])(?:-[A-Z])?(?:,[1-9]*[0-9]*[a-z])?",
-    #     r"[A-Z]?[ab]?\s*[1-9]?[0-9]?[a-z]?",
-    #     r"[ABCD](?![A-Za-z0-9/.,;])",
-    #     r"[1-9]\.[1-9]?[0-9]:[1-9]?[0-9]",
-    #     r"[1-9]*[0-9]?[a-z] [1-9]"
-    # ]
-    # pt_elementnummer = r"(" + "|".join(pts_elementnummer) + ")"
-    pt_nr_boek = r"([0-9]+)"
-    pt_nr_artikel = r"(\d+(?:\.\d+)?[a-zA-Z]?(?:-[a-zA-Z0-9]+)?)" # matches: 1, 1.12, 1.2a, 1b, 1b-c, 1-2
-
-    pt_lidwoorden = r"(?:de|het)?"
-    pt_opt_tussenvoegsel = rf"(?:van(?:\s+{pt_lidwoorden})?)?{pt_ws_0}"
-
-    if matches is not None:
-        pt_matches = "(" + "|".join(re.escape(match) for match in matches) + ")"
-    else:
-        pt_matches = r"(.+?)"
-    
-    patterns = [
-        # "Artikel 5 van het boek 7 van het BW"
-        # "Artikel 5 boek 7 BW"
-        (
-            rf"{pts_types['artikel']}{pt_ws}{pt_nr_artikel}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}{pt_ws}{pt_nr_boek}{pt_ws}{pt_opt_tussenvoegsel}?{pt_ws_0}{pt_matches}",
-            ("article", "book_number", "book_name",)
-        ),
-
-        # "Artikel 61 Wet toezicht trustkantoren 2018"
-        (
-            rf"{pts_types['artikel']}{pt_ws}{pt_nr_artikel}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}",
-            ("article", "book_name",)
-        ),
-
-        # "Artikel 7:658 van het BW"
-        (
-            rf"{pts_types['artikel']}{pt_ws}{pt_nr_boek}:{pt_nr_artikel}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}",
-            ("book_number", "article", "book_name",)
-        ),
-        
-        # "Burgerlijk Wetboek Boek 7, Artikel 658"
-        (
-            rf"{pt_matches}(?:{pt_ws}{pts_types['boek']}{pt_ws}{pt_nr_boek})?[,]?\s*{pts_types['artikel']}{pt_ws}{pt_nr_artikel}",
-            ("book_name", "book_number", "article",)
-        ),
-        
-        # "3:2 awb" -> also not parsed on linkeddata
-        # TODO: make this only match if not other match found???
-        (rf"{pt_nr_boek}:{pt_nr_artikel}{pt_ws}{pt_opt_tussenvoegsel}{pts_types['boek']}?{pt_ws_0}{pt_matches}", ("book_number", "article", "book_name")),
-    ]
+    patterns = PT.patterns(matches)
     
     results = []
 

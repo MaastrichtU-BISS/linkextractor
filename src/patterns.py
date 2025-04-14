@@ -51,17 +51,13 @@ class PT:
                 PT.LITERAL['ARTIKEL'] +
                 PT.WS +
                 PT.ID['ARTIKEL'] +
-            # PT.WS +
                 PT.OPT_TUSSENVOEGSEL +
-                    PT.WS +
+                PT.WS +
                 PT.LITERAL['BOEK'] +
                 PT.WS +
                 PT.ID['BOEK'] +
-            # PT.WS +
                 PT.OPT_TUSSENVOEGSEL +
-                    PT.WS +
-            # "?" +
-            # PT.WS_0 +
+                PT.WS +
                 ALIASES
             , ("article", "book_number", "book_name",)),
 
@@ -70,13 +66,9 @@ class PT:
                 PT.LITERAL['ARTIKEL'] +
                 PT.WS +
                 PT.ID['ARTIKEL'] +
-            # PT.WS +
                 PT.OPT_TUSSENVOEGSEL +
-                    PT.WS +
-            # PT.LITERAL['BOEK'] +
-            # "?" +
-            # PT.WS_0 +
-                    rf"(?:{PT.LITERAL['BOEK']}{PT.WS})?" +
+                PT.WS +
+                rf"(?:{PT.LITERAL['BOEK']}{PT.WS})?" +
                 ALIASES
             , ("article", "book_name",)),
 
@@ -87,22 +79,17 @@ class PT:
                 PT.ID['BOEK'] +
                 ":" +
                 PT.ID['ARTIKEL'] +
-            # PT.WS +
                 PT.OPT_TUSSENVOEGSEL +
-                    PT.WS + 
-            # PT.LITERAL['BOEK'] +
-            # "?" +
-            # {PT.WS_0}
-                    rf"(?:{PT.LITERAL['BOEK']}{PT.WS})?" +
+                PT.WS + 
+                rf"(?:{PT.LITERAL['BOEK']}{PT.WS})?" +
                 ALIASES
             , ("book_number", "article", "book_name",)),
             
             # "Burgerlijk Wetboek Boek 7, Artikel 658"
             (
                 ALIASES +
-                "(?:{PT.WS}{PT.LITERAL['BOEK']}{PT.WS}{PT.ID['BOEK']})?" +
-            # "[,]?\s*" +
-                    PT.COMMA_SPACE +
+                rf"(?:{PT.WS}{PT.LITERAL['BOEK']}{PT.WS}{PT.ID['BOEK']})?" +
+                PT.COMMA_SPACE +
                 PT.LITERAL['ARTIKEL'] +
                 PT.WS +
                 PT.ID['ARTIKEL']
