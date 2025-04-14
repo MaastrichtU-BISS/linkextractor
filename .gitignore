@@ -3,3 +3,4 @@ __pycache__
 data/dynamic/*
 !data/dynamic/.gitkeep
 database.db
+.env
