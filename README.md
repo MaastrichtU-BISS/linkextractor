@@ -1,8 +1,5 @@
 # LinkExtractor Lite
 
-## Pre-requisites
-- Ensure you have git-lfs working.
-
 ## Setting-up
 
 1. Clone and `cd` into repository
@@ -26,3 +23,8 @@ At the moment, there are two entrypoints of the applciation for testing purposes
 2. `tests/`
    - This folder contains test-cases for various formulations of citations.
    - Run with `pytest`
+
+## Scripts
+
+- `preprocess.py`:
+  - downloads the BWBIdList file and processes it accordingly to linkextractor.  
