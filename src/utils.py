@@ -279,9 +279,9 @@ def match_patterns_regex(text: str, matches: Union[List[tuple], None] = None):
     patterns = None
     if matches is not None and len(matches) > 0:
         pt_titles = capture("TITLE", "|".join(re.escape(title) for title in matches))
-        patterns = get_patterns(PT_REFS, {**PT_ATOMS, "TITLE": pt_titles}, False)
+        patterns = get_patterns({**PT_ATOMS, "TITLE": pt_titles}, False)
     else:
-        patterns = get_patterns(PT_REFS, PT_ATOMS, True)
+        patterns = get_patterns(PT_ATOMS, True)
     
     results = []
 
