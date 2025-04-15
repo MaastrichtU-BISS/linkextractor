@@ -1,3 +1,4 @@
+from src.schemas import Reference
 from src.utils import *
 
 def query_in_text(query, db_name):
@@ -28,36 +29,36 @@ def query_in_text(query, db_name):
                 matches.append({
                     "span": span,
                     "patterns": {
-                        "book_name": alias,
-                        "book_number": None,
-                        "article": None
+                        "TITLE": alias,
+                        "BOOK": None,
+                        "ARTICLE": None
                     }
                 })
 
     print("Matches:")
     for i, match in enumerate(matches):
-        match["patterns"]["book_name"]
+        # match["patterns"]["resource_title"]
         
-        book_name, book_number = match["patterns"]["book_name"], match["patterns"].get("book_number", None)
+        resource_title, book_number = match["patterns"]["TITLE"], match["patterns"].get("BOOK", None)
 
         results = []
-        if book_name is None and book_number is None:
+        if resource_title is None and book_number is None:
             # article alone is not enough to retrieve books
             pass
-        elif book_name is None and book_number is not None:
+        elif resource_title is None and book_number is not None:
             # search instances of '%boek {book_number}'
             # shouldnt happen, should always have book name!!!
             results = find_matching_aliases(f"boek {book_number}", wildcard=('l'), db_name=db_name)
 
-        elif book_name is not None and book_number is None:
-            # search instances of '{book_name}%' (like BW% will return BW 1, BW 2, ...)
-            results = find_matching_aliases(book_name, wildcard=('r'), db_name=db_name)
+        elif resource_title is not None and book_number is None:
+            # search instances of '{resource_title}%' (like BW% will return BW 1, BW 2, ...)
+            results = find_matching_aliases(resource_title, wildcard=('r'), db_name=db_name)
 
-        elif book_name is not None and book_number is not None:
-            # search instances of '{book_name} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
-            results = find_matching_aliases(f"{book_name} boek {book_number}", wildcard=('r'))
+        elif resource_title is not None and book_number is not None:
+            # search instances of '{resource_title} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
+            results = find_matching_aliases(f"{resource_title} boek {book_number}", wildcard=('r'))
             if len(results) == 0:
-                results = find_matching_aliases(book_name, wildcard=('r'), db_name=db_name)
+                results = find_matching_aliases(resource_title, wildcard=('r'), db_name=db_name)
 
         print(f"{i+1}) Match at character positions {match['span'][0]} to {match['span'][1]} of pattern {match}:")
         if len(results) == 0:
@@ -69,7 +70,7 @@ def query_in_text(query, db_name):
     print()
     return end_results
     
-def query_exact(query: str, db_name="database.db"):
+def query_exact(query: str, db_name="database.db") -> List[Reference]:
     query = query.strip()
     results = []
 
@@ -89,37 +90,37 @@ def query_exact(query: str, db_name="database.db"):
             }
     else:
         for i, match in enumerate(matches):
-            if not 'book_name' in match['patterns']:
+            if not 'TITLE' in match['patterns']:
                 continue
         
-            book_name, book_number = match["patterns"]["book_name"], match["patterns"].get("book_number", None)
+            resource_title, book_number = match["patterns"]["TITLE"], match["patterns"].get("BOOK", None)
 
             aliases = []
-            if book_name is None:
+            if resource_title is None:
                 if book_number is None:
                     # article alone is (currently) not enough to retrieve books
                     pass
-                elif book_name is None and book_number is not None:
+                elif resource_title is None and book_number is not None:
                     # search instances of '%boek {book_number}'
                     # shouldnt happen, should always have book name!!!
                     aliases = find_matching_aliases(f"boek {book_number}", wildcard=('l'), db_name=db_name)
 
-            elif book_name is not None:
+            elif resource_title is not None:
                 if book_number is None:
-                    # search instances of '{book_name}%' (like BW% will return BW 1, BW 2, ...)
-                    aliases = find_matching_aliases(book_name, wildcard=('r'), db_name=db_name)
+                    # search instances of '{resource_title}%' (like BW% will return BW 1, BW 2, ...)
+                    aliases = find_matching_aliases(resource_title, wildcard=('r'), db_name=db_name)
 
                 elif book_number is not None:
-                    # search instances of '{book_name} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
-                    aliases = find_matching_aliases(f"{book_name} boek {book_number}", wildcard=('r'), db_name=db_name)
+                    # search instances of '{resource_title} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
+                    aliases = find_matching_aliases(f"{resource_title} boek {book_number}", wildcard=('r'), db_name=db_name)
                     if len(aliases) == 0:
                         # search without 'boek {nr}' suffix
-                        aliases = find_matching_aliases(book_name, wildcard=('r'), db_name=db_name)
+                        aliases = find_matching_aliases(resource_title, wildcard=('r'), db_name=db_name)
                 
                 if len(aliases) == 0:
                     # if above both didnt lead to results, perform substring match
                     # this (temporarily) fixes 
-                    found = find_longest_alias_in_substring(book_name, db_name=db_name)
+                    found = find_longest_alias_in_substring(resource_title, db_name=db_name)
                     aliases = [found] if found is not None else aliases
 
             if len(aliases) == 0:
@@ -131,12 +132,16 @@ def query_exact(query: str, db_name="database.db"):
                         'resource': {
                             'name': alias[0],
                             'id': alias[1]
-                        }
+                        },
+                        'fragment': {}
                     }
-                    if 'article' in match['patterns']:
-                        result['article'] = match['patterns']['article']
-                    if 'book_number' in match['patterns']:
-                        result['book'] = match['patterns']['book_number']
+                    for key in ['ARTICLE', 'BOOK', 'SUBPARAGRAPH']:
+                        if key in match['patterns']:
+                            result['fragment'][key.lower()] = match['patterns'][key]
+                    # if 'ARTICLE' in match['patterns']:
+                    #     result['fragment']['article'] = match['patterns']['ARTICLE']
+                    # if 'BOOK' in match['patterns']:
+                    #     result['fragment']['book'] = match['patterns']['BOOK']
                     results.append(result)
 
     return results

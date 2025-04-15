@@ -88,7 +88,7 @@ if __name__ == "__main__":
         print(f"{i}) Query: \"{query}\"")
 
         times = []
-        iterations = 10
+        iterations = 1
         for _ in range(iterations):
             time_s = time()
             # results = query_in_text(query, db_name)

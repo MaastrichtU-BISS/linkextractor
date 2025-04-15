@@ -1,7 +1,7 @@
 from typing import Union, List
 import sqlite3
 import re
-from src.patterns import PT
+from src.patterns import PT_ATOMS, PT_REFS, capture, get_patterns
 
 def find_aliases_in_text(input_text, db_name="database.db"):
     # performs WHERE ? LIKE column, instead of WHERE column LIKE ?
@@ -242,7 +242,7 @@ def get_aliases_of_ids(id, db_name="database.db"):
 
         return results
 
-def match_patterns_regex(text, matches: Union[List[tuple], None] = None):
+def match_patterns_regex_old(text, matches: Union[List[tuple], None] = None):
     """
     If matches is None: assume that the whole of text is the reference searching for
     If matches is not None: assume list of possible matches and search against that
@@ -263,6 +263,33 @@ def match_patterns_regex(text, matches: Union[List[tuple], None] = None):
             results.append({
                 "span": match.span(),
                 "patterns": {keys[i]: match.group(i + 1) for i in range(len(keys))}
+            })
+    
+    return results
+
+def match_patterns_regex(text: str, matches: Union[List[tuple], None] = None):
+    """
+    If matches is None: assume that the whole of text is the reference searching for
+    If matches is not None: assume list of possible matches and search against that
+    If matches is not None but empty: attempted to find matches but no matches to find against so return []
+    """
+    if matches is not None and len(matches) == 0:
+        return []
+
+    patterns = None
+    if matches is not None and len(matches) > 0:
+        pt_titles = capture("TITLE", "|".join(re.escape(title) for title in matches))
+        patterns = get_patterns(PT_REFS, {**PT_ATOMS, "TITLE": pt_titles}, False)
+    else:
+        patterns = get_patterns(PT_REFS, PT_ATOMS, True)
+    
+    results = []
+
+    for pattern in patterns:
+        for match in re.finditer(pattern, text):
+            results.append({
+                "span": match.span(),
+                "patterns": match.groupdict()
             })
     
     return results
