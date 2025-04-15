@@ -1,3 +1,4 @@
+from src.patterns import fix_matches, match_patterns_regex
 from src.schemas import Reference
 from src.utils import *
 
@@ -69,12 +70,16 @@ def query_in_text(query, db_name):
                 print(f" -> {result[0]} ({result[1]})")
     print()
     return end_results
-    
+
 def query_exact(query: str, db_name="database.db") -> List[Reference]:
     query = query.strip()
     results = []
 
     matches = match_patterns_regex(query)
+
+    # some manual fixes, such as matching 1:2 as book:art instead of article
+    matches = fix_matches(matches)
+
     if len(matches) == 0:
         aliases = find_matching_aliases(query, wildcard=('l', 'r'), db_name=db_name)
         if len(aliases) == 0:
@@ -112,7 +117,8 @@ def query_exact(query: str, db_name="database.db") -> List[Reference]:
 
                 elif book_number is not None:
                     # search instances of '{resource_title} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
-                    aliases = find_matching_aliases(f"{resource_title} boek {book_number}", wildcard=('r'), db_name=db_name)
+                    # TODO: I removed the wildcard=('r') because for BW book 1 it also returned 10. Do more testing.
+                    aliases = find_matching_aliases(f"{resource_title} boek {book_number}", db_name=db_name)
                     if len(aliases) == 0:
                         # search without 'boek {nr}' suffix
                         aliases = find_matching_aliases(resource_title, wildcard=('r'), db_name=db_name)

@@ -242,54 +242,27 @@ def get_aliases_of_ids(id, db_name="database.db"):
 
         return results
 
-def match_patterns_regex_old(text, matches: Union[List[tuple], None] = None):
-    """
-    If matches is None: assume that the whole of text is the reference searching for
-    If matches is not None: assume list of possible matches and search against that
-    If matches is not None but empty: attempted to find matches but no matches to find against so return []
-    """
-    if matches is not None and len(matches) == 0:
-        return []
+# def match_patterns_regex_old(text, matches: Union[List[tuple], None] = None):
+#     """
+#     If matches is None: assume that the whole of text is the reference searching for
+#     If matches is not None: assume list of possible matches and search against that
+#     If matches is not None but empty: attempted to find matches but no matches to find against so return []
+#     """
+#     if matches is not None and len(matches) == 0:
+#         return []
 
-    patterns = PT.patterns(matches)
+#     patterns = PT.patterns(matches)
     
-    results = []
+#     results = []
 
-    for pattern, keys in patterns:
-        if matches is None:
-            # if matches not passed, assume matching pattern from start to end of line
-            pattern = rf"^\s*{pattern}\s*$"
-        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
-            results.append({
-                "span": match.span(),
-                "patterns": {keys[i]: match.group(i + 1) for i in range(len(keys))}
-            })
+#     for pattern, keys in patterns:
+#         if matches is None:
+#             # if matches not passed, assume matching pattern from start to end of line
+#             pattern = rf"^\s*{pattern}\s*$"
+#         for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+#             results.append({
+#                 "span": match.span(),
+#                 "patterns": {keys[i]: match.group(i + 1) for i in range(len(keys))}
+#             })
     
-    return results
-
-def match_patterns_regex(text: str, matches: Union[List[tuple], None] = None):
-    """
-    If matches is None: assume that the whole of text is the reference searching for
-    If matches is not None: assume list of possible matches and search against that
-    If matches is not None but empty: attempted to find matches but no matches to find against so return []
-    """
-    if matches is not None and len(matches) == 0:
-        return []
-
-    patterns = None
-    if matches is not None and len(matches) > 0:
-        pt_titles = capture("TITLE", "|".join(re.escape(title) for title in matches))
-        patterns = get_patterns({**PT_ATOMS, "TITLE": pt_titles}, False)
-    else:
-        patterns = get_patterns(PT_ATOMS, True)
-    
-    results = []
-
-    for pattern in patterns:
-        for match in re.finditer(pattern, text):
-            results.append({
-                "span": match.span(),
-                "patterns": match.groupdict()
-            })
-    
-    return results
+#     return results

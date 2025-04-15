@@ -3,7 +3,7 @@
 ## Setting-up
 
 1. Clone and `cd` into repository
-2. Create and activate a virtual environment:
+2. Create and activate a virtual environment
     ```
     python3 -m pip venv .venv
     source .venv/bin/activate

@@ -1,4 +1,4 @@
-from typing import Dict, Literal
+from typing import Dict, List, Literal, Union
 import re
 
 # NEW PATTERN
@@ -19,7 +19,7 @@ PT_ATOMS = {
     "ID|BOOK": capture('BOOK', r"[0-9]+"),
     "ID|SUBPARAGRAPH": capture("SUBPARAGRAPH", r"\d+"),
     # "ID|ARTICLE": capture('ARTICLE', r"\d+(?:\.\d+)?[a-zA-Z]?(?:-[a-zA-Z0-9]+)?(?:{WS}{LITERAL|SUBPARAGRAPH}{WS}{ID|SUBPARAGRAPH})"),
-    "ID|ARTICLE": capture('ARTICLE', r"\d+(?:\.\d+)?[a-zA-Z]?(?:-[a-zA-Z0-9]+)?") + r"(?:{WS}{LITERAL|SUBPARAGRAPH}{WS}{ID|SUBPARAGRAPH})?",
+    "ID|ARTICLE": capture('ARTICLE', r"\d+(?:\.\d+)?[a-zA-Z]?(?:[-:][a-zA-Z0-9]+)?") + r"(?:{WS}{LITERAL|SUBPARAGRAPH}{WS}{ID|SUBPARAGRAPH})?",
 
     "LIDWOORDEN": r"(?:de|het)",
     "TUSSENVOEGSEL": r"(?:{WS}van(?:{WS}{LIDWOORDEN})?)",
@@ -82,7 +82,7 @@ PT_REFS = [
 PT_REFS_EXACT = [
     # "3:2 awb"
     r'''
-        {ID|BOOK}:{ID|ARTICLE}
+        {ID|ARTICLE}
         {TUSSENVOEGSEL}?
         {WS}
         (?:{LITERAL|BOOK}{WS})?
@@ -110,6 +110,16 @@ def sub_pattern_placeholders(pattern, mapping):
     return current
 
 def get_patterns(mapping, exact=False):
+    """
+    Generate a list of compiled regular expression patterns from a base set,
+    with placeholders replaced using the provided mapping.
+
+    The base patterns (from PT_REFS and optionally PT_REFS_EXACT) may contain 
+    placeholders in the form {placeholder_name}, which are recursively substituted.
+
+    If `exact` is True, each pattern is wrapped to match the entire line (with optional 
+    leading/trailing whitespace).
+    """
     compiled_patterns = []
     
     if exact:
@@ -124,3 +134,61 @@ def get_patterns(mapping, exact=False):
         compiled_patterns.append(re.compile(mapped, re.VERBOSE | re.IGNORECASE))
 
     return compiled_patterns
+
+def fix_matches(matches: list):
+    """
+    This function describes and executes business logic exceptions to defined 
+    rules.
+    """
+
+    for i in range(len(matches)):
+        match = matches[i]
+
+        """
+        case 1: if title is BW and (captured) article contains semicolon, then
+                interpret the article as [book]:[article]
+                to determine if title is BW, take into account all aliases from
+                the query below that do not contian a book identifier:
+        SELECT DISTINCT(alias) FROM aliases WHERE ref IN (SELECT ref FROM aliases WHERE alias = 'BW');
+        """
+
+        if 'TITLE' in match['patterns'] and \
+            match['patterns']['TITLE'] in ['BW', 'Burgerlijk Wetboek'] and \
+            'ARTICLE' in match['patterns'] and \
+            ':' in match['patterns']['ARTICLE']:
+
+            book, art = match['patterns']['ARTICLE'].split(':')
+            matches[i]['patterns']['ARTICLE'] = art
+            matches[i]['patterns']['BOOK'] = book
+    
+    return matches
+
+def match_patterns_regex(text: str, matches: Union[List[tuple], None] = None):
+    """
+    If matches is None: assume that the whole of text is the reference searching for
+    If matches is not None: assume list of possible matches and search against that
+    If matches is not None but empty: attempted to find matches but no matches to find against so return []
+    """
+    if matches is not None and len(matches) == 0:
+        return []
+
+    patterns = None
+    if matches is not None and len(matches) > 0:
+        pt_titles = capture("TITLE", "|".join(re.escape(title) for title in matches))
+        patterns = get_patterns({**PT_ATOMS, "TITLE": pt_titles}, False)
+    else:
+        patterns = get_patterns(PT_ATOMS, True)
+    
+    results = []
+
+    for pattern in patterns:
+        for match in re.finditer(pattern, text):
+            span = match.span()
+            if any(r['span']==span for r in results): # ensure single result per span
+                continue
+            results.append({
+                "span": span,
+                "patterns": match.groupdict()
+            })
+    
+    return results
