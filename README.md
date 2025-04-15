@@ -1,5 +1,8 @@
 # LinkExtractor Lite
 
+## Pre-requisites
+- Ensure you have git-lfs working.
+
 ## Setting-up
 
 1. Clone and `cd` into repository
