@@ -67,20 +67,8 @@ if __name__ == "__main__":
         "art. 1 Wet gelijke behandeling op grond van handicap of chronische ziekte",
 
         "art. 2:346 lid 1, aanhef en onder e BW",
-        "Burgerlijk Wetboek Boek 7, Artikel 658"
-    ]
-
-    # TODO:
-    # 1 and 2: longest substring search
-    # 3: implement rule for 5:1 BW
-    # 4: extend article patterns to include dots and have alphanumerical suffixes
-    queries = [
-        "Artikel 3 Wet ter voorkoming van witwassen en financieren van terrorisme (cliëntenonderzoek)",
-        "Artikel 7.12B WHW",
-        "Artikel 4:8 Algemene wet bestuursrecht (hoor en wederhoor)",
-        "Artikel 4:8 AWB",
-        "5:1 BW",
-        "Art. 5:1 BW",
+        "Burgerlijk Wetboek Boek 7, Artikel 658",
+        
         "Art. 5:1 lid 2 BW",
     ]
 
