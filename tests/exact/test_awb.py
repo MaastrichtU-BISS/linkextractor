@@ -13,5 +13,15 @@ def test_awb_48():
     result = results[0]
 
     assert result['resource']['id'] == 'BWBR0005537', "should be identifier for AWB"
-    assert result['fragment']['article'] == '4:8', "should be article number 1"
-    assert result['fragment']['book'] == None, "should not have a book number"
+    assert result['fragment']['article'] == '4:8', "should be article number 4:8"
+    assert 'book' not in result['fragment'] or result['fragment']['book'] == None, "should not have a book number"
+
+def test_awb_48():
+    results = search.query_exact("Artikel 3:2 Algemene wet bestuursrecht (zorgvuldigheidsbeginsel)")
+
+    assert len(results) == 1, "should be one result"
+    result = results[0]
+
+    assert result['resource']['id'] == 'BWBR0005537', "should be identifier for AWB"
+    assert result['fragment']['article'] == '3:2', "should be article number 3:2"
+    assert 'book' not in result['fragment'] or result['fragment']['book'] == None, "should not have a book number"
