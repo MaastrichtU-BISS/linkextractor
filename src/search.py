@@ -144,10 +144,6 @@ def query_exact(query: str, db_name="database.db") -> List[Reference]:
                     for key in ['ARTICLE', 'BOOK', 'SUBPARAGRAPH']:
                         if key in match['patterns']:
                             result['fragment'][key.lower()] = match['patterns'][key]
-                    # if 'ARTICLE' in match['patterns']:
-                    #     result['fragment']['article'] = match['patterns']['ARTICLE']
-                    # if 'BOOK' in match['patterns']:
-                    #     result['fragment']['book'] = match['patterns']['BOOK']
                     results.append(result)
 
     return results
