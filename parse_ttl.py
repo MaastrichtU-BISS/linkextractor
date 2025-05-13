@@ -1,52 +1,28 @@
 import io
 import gzip
 from rdflib import Graph, Literal
-from rdflib.parser import Parser
-from rdflib.plugins.parsers.ntriples import W3CNTriplesParser
 import re
 import sqlite3
 
-split_predicates = re.compile(r'\s*;\s*')
-split_objects    = re.compile(r'\s*,\s*')
-literal_value    = re.compile(r'^"(?P<val>.*)"(?:\^\^<(?P<dtype>[^>]+)>)?$')
+from time import perf_counter
+from contextlib import contextmanager
 
-def parse_turtle_chunk_aa(buffer: str) -> dict:
-    buf = buffer.strip()
-    if buf.endswith('.'):
-        buf = buf[:-1].strip()
+class TimerCollector:
+    def __init__(self):
+        self.timings = {}
 
-    parts = buf.split(None, 1)
-    subject = parts[0]
-    rest    = parts[1] if len(parts) == 2 else ''
-    result = {"subject": subject, "predicates": {}}
+    @contextmanager
+    def timed(self, label):
+        start = perf_counter()
+        yield
+        end = perf_counter()
+        self.timings.setdefault(label, []).append(end - start)
 
-    # split into predicate-object segments
-    segments = split_predicates.split(rest)
-    for seg in segments:
-        seg = seg.strip()
-        if not seg:
-            continue
-
-        # guard: require at least one whitespace to separate pred from objs
-        seg_parts = seg.split(None, 1)
-        if len(seg_parts) != 2:
-            # nothing to do here—skip
-            continue
-
-        pred_token, objs_str = seg_parts
-        objs = []
-        for o in split_objects.split(objs_str):
-            o = o.strip()
-            m = literal_value.match(o)
-            if m:
-                lit = m.group('val')
-                objs.append(lit)
-            else:
-                objs.append(o)
-
-        result["predicates"].setdefault(pred_token, []).extend(objs)
-
-    return result
+    def report(self):
+        for label, times in self.timings.items():
+            avg = sum(times) / len(times)
+            total = sum(times)
+            print(f"[{label}] runs: {len(times)}, avg: {avg:.6f}s, total: {total:.6f}s")
 
 turtle_head = """
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
@@ -64,8 +40,8 @@ turtle_head = """
 """
 
 def parse_turtle_chunk(buffer):
-    g = Graph()
-    g.parse(data=turtle_head+buffer, format="turtle")
+    g = Graph(store="Oxigraph")
+    g.parse(data=turtle_head+buffer, format="ox-turtle")
 
     result = {"subject": None, "predicates": {}}
 
@@ -92,7 +68,6 @@ def parse_turtle_chunk(buffer):
 # Connect to PostgreSQL
 def get_conn():
     return sqlite3.connect("caselaw.db")
-
 
 def init_db(conn):
     print("Initializing database")
@@ -143,9 +118,9 @@ def init_db(conn):
     print("Database initialized.")
 
 def insert_lawelement(cursor, lawelement):
-    assert all(key in lawelement for key in ['type', 'bwb_id', 'lido_id', 'title'])
+    assert all(key in lawelement and lawelement[key] is not None for key in ['type', 'bwb_id', 'lido_id', 'title'])
     
-    cursor.execute("INSERT INTO lawelement (type, bwb_id, lido_id, jc_id, number, title) VALUES (?, ?, ?, ?, ?, ?);",
+    cursor.execute("INSERT OR IGNORE INTO lawelement (type, bwb_id, lido_id, jc_id, number, title) VALUES (?, ?, ?, ?, ?, ?);",
         (
             lawelement['type'], 
             lawelement['bwb_id'],
@@ -164,17 +139,18 @@ def open_fast_gzip_lines(path):
     return io.TextIOWrapper(buffered, encoding='utf-8')
 
 RE_BWB_FROM_LIDO_ID = re.compile(r"\/terms\/bwb\/id\/(.*?)\/")
+RE_ECLI_FROM_LIDO_ID = re.compile(r"\/terms\/jurisprudentie\/id\/(.*?)$")
 
 regelingonderdelen = {
-    '<http://linkeddata.overheid.nl/terms/Wet>': 'wet',
-    '<http://linkeddata.overheid.nl/terms/Boek>': 'boek',
-    '<http://linkeddata.overheid.nl/terms/Deel>': 'deel',
-    '<http://linkeddata.overheid.nl/terms/Titeldeel>': 'titeldeel',
-    '<http://linkeddata.overheid.nl/terms/Hoofdstuk>': 'hoofdstuk',
-    '<http://linkeddata.overheid.nl/terms/Artikel>': 'artikel',
-    '<http://linkeddata.overheid.nl/terms/Paragraaf>': 'paragraaf',
-    '<http://linkeddata.overheid.nl/terms/SubParagraaf>': 'subparagraaf',
-    '<http://linkeddata.overheid.nl/terms/Afdeling>': 'afdeling',
+    'http://linkeddata.overheid.nl/terms/Wet': 'wet',
+    'http://linkeddata.overheid.nl/terms/Deel': 'deel',
+    'http://linkeddata.overheid.nl/terms/Boek': 'boek',
+    'http://linkeddata.overheid.nl/terms/Titeldeel': 'titeldeel',
+    'http://linkeddata.overheid.nl/terms/Hoofdstuk': 'hoofdstuk',
+    'http://linkeddata.overheid.nl/terms/Artikel': 'artikel',
+    'http://linkeddata.overheid.nl/terms/Paragraaf': 'paragraaf',
+    'http://linkeddata.overheid.nl/terms/SubParagraaf': 'subparagraaf',
+    'http://linkeddata.overheid.nl/terms/Afdeling': 'afdeling',
 }
 
 def process_lawelement(cursor, node, type):
@@ -193,14 +169,19 @@ def process_lawelement(cursor, node, type):
     le = {}
 
     le["type"] = "law"
-    le["lido_id"] = node["subject"].strip('<>')
-    le["title"] = node['predicates'].get('<http://purl.org/dc/terms/title>', [None])[0]
+    le["lido_id"] = node["subject"]
+    le["title"] = node['predicates'].get('http://purl.org/dc/terms/title', [None])[0]
+    if le["title"] is None:
+        le["title"] = node['predicates'].get('http://www.w3.org/2004/02/skos/core#prefLabel', [None])[0]
+    if le["title"] is None:
+        le["title"] = node['predicates'].get('http://www.w3.org/2000/01/rdf-schema#label', [None])[0]
     
     le["type"] = type
+    le['jc_id'] = None
 
-    juriconnect = node['predicates'].get('<http://linkeddata.overheid.nl/terms/heeftJuriconnect>')
-    if juriconnect is not None:
-        jci13 = next((x for x in juriconnect if x[0:5]=='jci1.3'), None)
+    jcid = node['predicates'].get('http://linkeddata.overheid.nl/terms/heeftJuriconnect')
+    if jcid is not None:
+        jci13 = next((x for x in jcid if x[0:6]=='jci1.3'), None)
         if jci13 is not None:
             le['jc_id'] = jci13
 
@@ -208,123 +189,264 @@ def process_lawelement(cursor, node, type):
     if bwb_match:
         le['bwb_id'] = bwb_match.group(1)
 
-    onderdeel_nummer = node['predicates'].get('<http://linkeddata.overheid.nl/terms/heeftOnderdeelNummer>')
+    onderdeel_nummer = node['predicates'].get('http://linkeddata.overheid.nl/terms/heeftOnderdeelNummer')
     if onderdeel_nummer is not None and len(onderdeel_nummer) == 1:
-        node['number'] = onderdeel_nummer[0]
+        le['number'] = onderdeel_nummer[0]
 
-    print(f"processing the {le['type']} with bwb-id {le['bwb_id']}")
+    # print(f"processing the {le['type']} with bwb-id {le['bwb_id']}")
     insert_lawelement(cursor, le)
+
+def insert_case(cursor, case):
+    assert all(key in case and case[key] is not None for key in ['ecli_id', 'title'])
+
+    cursor.execute("INSERT OR IGNORE INTO legal_case (ecli_id, title) VALUES (?, ?) ", (case['ecli_id'], case['title'],))
+    return cursor.lastrowid
+
+def get_lawelement_by_lido_id(cursor, lido_id):
+    if not 'terms/bwb/id' in lido_id:
+        return (None, None)
+
+    # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826/1711894/1821-08-01/1821-08-01
+    # ['https:', '', 'linkeddata.overheid.nl', 'terms', 'bwb', 'id', 'BWBR0001826', '1711894', '1821-08-01', '1821-08-01']
+    
+    cursor.execute("SELECT id FROM lawelement WHERE lido_id = ?", (lido_id,))
+    result = cursor.fetchone()
+    if result:
+        return (lido_id, result[0])
+    
+    lido_id_no_dates = "/".join(lido_id.split("/")[0:8])
+    # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826/1711894
+    cursor.execute("SELECT id FROM lawelement WHERE lido_id LIKE ?", (lido_id_no_dates,))
+    result = cursor.fetchone()
+    if result:
+        return (lido_id, result[0])
+    
+    lido_id_only_bwb = "/".join(lido_id.split("/")[0:7])
+    # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826
+    cursor.execute("SELECT id FROM lawelement WHERE lido_id LIKE ?", (lido_id_only_bwb,))
+    result = cursor.fetchone()
+    if result:
+        return (lido_id, result[0])
+    
+    return (None, None)
+
+def insert_caselaw(cursor, caselaw):
+    assert all(key in caselaw and caselaw[key] is not None for key in ['case_id', 'law_id', 'source', 'lido_id'])
+    
+    cursor.execute("INSERT OR IGNORE INTO case_law (case_id, law_id, source, jc_id, lido_id, opschrift) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            caselaw['case_id'],
+            caselaw['law_id'],
+            caselaw['source'],
+            caselaw['lido_id'],
+            caselaw.get('jc_id'),
+            caselaw.get('opschrift'),
+        )
+    )
 
 def process_case(cursor, node):
     case = {}
 
-    print(i, a, "->", node['subject'], "\n")
+    # case["id"] = node["subject"]
+    # identifiers = node['predicates'].get('http://purl.org/dc/terms/identifier')
+    # if identifiers is not None:
+    #     if len(identifiers) and len:
+    #     case["ecli_id"] = node['predicates'].get('http://purl.org/dc/terms/title', [None])[0]
+
+    ecli_id = RE_ECLI_FROM_LIDO_ID.search(node["subject"])
+    if ecli_id:
+        case["ecli_id"] = ecli_id.group(1)
+    else:
+        print("No ecli-id found in: ", node["subject"])
+        return
+
+    case["title"] = node['predicates'].get('http://purl.org/dc/terms/title', [None])[0]
+    if case["title"] is None:
+        case["title"] = node['predicates'].get('http://www.w3.org/2000/01/rdf-schema#label', [None])[0]
+    if case["title"] is None:
+        return
+
+    # print(case)
+    case_id = insert_case(cursor, case)
     
-    # case["type"] = "case"
-    case["id"] = node["subject"].strip("<>")
-    case["title"] = node['predicates'].get('<http://purl.org/dc/terms/title>', [None])[0]
+    links = node['predicates'].get('http://linkeddata.overheid.nl/terms/linkt', [])
+    for link in links:
+        # print("LINK", link)
+        matched_law_lido_id, law_id = get_lawelement_by_lido_id(cursor, link)
+        if law_id is None: continue
+        caselaw = {
+            'case_id': case_id,
+            'law_id': law_id,
+            'source': 'lido-linkt',
+            'jc_id': None,
+            'lido_id': matched_law_lido_id,
+            'opschrift': None
+        }
+        insert_caselaw(cursor, caselaw)
 
-    insert_case()
-
-    referenties = node['predicates'].get('<http://linkeddata.overheid.nl/terms/refereertAan>', [None])
-    # https://linkeddata.overheid.nl/terms/jurisprudentie/id/ECLI:NL:RBLIM:2025:3601
+    referenties = node['predicates'].get('http://linkeddata.overheid.nl/terms/refereertAan', [])
     for ref in referenties:
         # linktype=http://linkeddata.overheid.nl/terms/linktype/id/lx-referentie|target=bwb|uri=jci1.3:c:BWBR0005288&boek=5&titeldeel=1&artikel=1&z=2024-01-01&g=2024-01-01|lido-id=http://linkeddata.overheid.nl/terms/bwb/id/BWBR0005288/1723924/1992-01-01/1992-01-01|opschrift=artikel 5:1 BW
-        ref_props = dict(item.split('=') for item in ref_props.split("|"))
-        if ref_props.get('target') == 'bwb' and ref_props.get('uri') is not None:
-            get_law_by_jci()
+        ref_props = dict(item.split('=', 1) for item in ref.split("|"))
+        if ref_props.get('lido-id') is not None:
+            # print("REF LINK", ref_props.get('lido-id'))
+            matched_law_lido_id, law_id = get_lawelement_by_lido_id(cursor, ref_props.get('lido-id'))
+            if law_id is None: continue
+            caselaw = {
+                'case_id': case_id,
+                'law_id': law_id,
+                'source': 'lido-ref',
+                'jc_id': ref_props.get('uri'),
+                'lido_id': matched_law_lido_id,
+                'opschrift': ref_props.get('opschrift')
+            }
+            insert_caselaw(cursor, caselaw)
 
-            insert_link(x, y, 'lido-ref')
-
-            if ref_props.get("opschrift") is not None:
-                insert_opschrift()
-
-def process_ttl_gz(conn, file_path):
-    cursor = conn.cursor()
+            # if ref_props.get("opschrift") is not None:
+            #     insert_alias(cursor, )
     
-    # First: import all law-elements
-    # Then: process all links (by processing cases)
+    # exit(1)
 
-    print("Start processing law items")
 
-    counter = 0
+def stream_turtle_chunks(file_path):
+    in_multiline_string = False
+    buffer = []
+
     with open_fast_gzip_lines(file_path) as f:
-        buffer = []
         for line in f:
             buffer.append(line)
-            # if line.rstrip().endswith('.'):
-            if len(line) > 1 and line[-2] == ".":
+
+            # Count the number of triple quotes to toggle state
+            triple_quote_count = line.count('"""') + line.count("'''")
+            if triple_quote_count % 2 == 1:
+                # Odd number of triple quotes in line - toggle state
+                in_multiline_string = not in_multiline_string
+
+            # if not in_multiline_string and line.strip().endswith('.'):
+            if not in_multiline_string and len(line) > 1 and line[-2] == ".":
                 chunk = ''.join(buffer)
+                yield chunk
                 buffer.clear()
 
-                node = {}
-                try:
-                    node = parse_turtle_chunk(chunk)
-                    if node is None or node['subject'] is None or node['predicates'] is None:
-                        continue
-                    print("parsed", node)
-                except Exception as err:
-                    print("Parse tripple error", err)
-                    print("Chunk:", chunk)
-                    exit(1)
 
-                if 'a' in node['predicates'] and len(node['predicates']['a']) == 1:
-                    a = node['predicates']['a'][0]
-                    print(a)
-                    break
-                    if a in regelingonderdelen:
-                        counter += 1
-                        process_lawelement(cursor, node, regelingonderdelen[a])
-            
-                        if counter % 2000 == 0:
-                            print(f"{counter}) committing to db...")
-                            conn.commit()
+typeuri = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
 
-                if counter >= 2000: break
+def process_ttl_laws(conn, file_path):
+    cursor = conn.cursor()
+    # tc = TimerCollector()
+    print("Start processing law items")
+
+    parse_err_count = 0
+    lawelement_count = 0
+
+    i=0
+    for chunk in stream_turtle_chunks(file_path):
+        i+=1
+        if i % 10000 == 0: print(i, "->", lawelement_count)
+        
+        # heuristic check if this chunk is relevant for us
+        if 'terms/Wet' not in chunk and \
+            'terms/Deel' not in chunk and \
+            'terms/Boek' not in chunk and \
+            'terms/Titeldeel' not in chunk and \
+            'terms/Hoofdstuk' not in chunk and \
+            'terms/Artikel' not in chunk and \
+            'terms/Paragraaf' not in chunk and \
+            'terms/SubParagraaf' not in chunk and \
+            'terms/Afdeling' not in chunk:
                 continue
+        
+        try:
+            # with tc.timed("parse turtle"):
+            node = parse_turtle_chunk(chunk)
+            if node is None or node['subject'] is None or node['predicates'] is None:
+                continue
+        except Exception as err:
+            print("Parse tripple error", err)
+            print("Chunk:", chunk)
+            parse_err_count+=1
+            # if parse_err_count>=100:
+            #     exit(1)
+            continue
+        
+        if typeuri in node['predicates'] and len(node['predicates'][typeuri]) == 1:
+            a = node['predicates'][typeuri][0]
+            if a in regelingonderdelen:
+                lawelement_count += 1
+                
+                # with tc.timed("process element"):
+                process_lawelement(cursor, node, regelingonderdelen[a])
+
+                # with tc.timed("commit to db"):
+                if lawelement_count % 2000 == 0:
+                    print(f"{lawelement_count}) committing to db...")
+                    conn.commit()
     
-    print(f"Finished processing {counter} law items")
-    quit()
-    return
+    conn.commit()
+    cursor.close()
+    print(f"Finished processing {lawelement_count} law items (with {parse_err_count} parsing errors)")
+    # tc.report()
+
+def process_ttl_cases(conn, file_path):
+    cursor = conn.cursor()
+    # cursor = None
 
     print("Start processing case items")
 
-    counter = 0
-    with open_fast_gzip_lines(file_path) as f:
-        buffer = []
-        for line in f:
-            buffer.append(line)
-            # if line.rstrip().endswith('.'):
-            if len(line) > 1 and line[-2] == ".":
+    parse_err_count = 0
+    case_count = 0
+    i = 0
+    for chunk in stream_turtle_chunks(file_path):
+        i+=1
+        
+        if i % 10000 == 0: print(i, "->", case_count)
+        if i < 6730000: continue
+        # if i > 1730000 and i < 6610000: continue
 
-                chunk = ''.join(buffer)
-                buffer.clear()
-
-                node = {}
-                try:
-                    node = parse_turtle_chunk(chunk)
-                except Exception as err:
-                    print("Parse tripple error", err)
-                    exit()
-
-                if 'a' in node['predicates'] and len(node['predicates']['a']) == 1:
-
-                    if a == '<http://linkeddata.overheid.nl/terms/Jurisprudentie>':
-                        counter += 1
-                        process_case(cursor, node)
-
-            if counter > 100000: break
+        # heuristic check if this chunk is relevant for us
+        if not 'terms/Jurisprudentie' in chunk:
             continue
 
-    # print(i)
+        try:
+            node = parse_turtle_chunk(chunk)
+            if node is None or node['subject'] is None or node['predicates'] is None:
+                continue
+        except Exception as err:
+            print("Parse tripple error", err)
+            print("Chunk:", chunk)
+            parse_err_count+=1
+            if parse_err_count>=100:
+                exit(1)
+            continue
+        
+        if typeuri in node['predicates'] and len(node['predicates'][typeuri]) == 1:
+            a = node['predicates'][typeuri][0]
+            if a == 'http://linkeddata.overheid.nl/terms/Jurisprudentie':
+                case_count += 1
+                process_case(cursor, node)
+                
+                if case_count % 2000 == 0:
+                    print(f"{case_count}) committing to db...")
+                    conn.commit()
+
     conn.commit()
-    # cursor.close()
+    cursor.close()
+    print(f"Finished processing {case_count} cases (with {parse_err_count} parsing errors)")
 
 if __name__=="__main__":
-    conn = get_conn()
-    init_db(conn)
-    process_ttl_gz(conn, "data/dynamic/lido-export.ttl.gz")
+    
+    # process_ttl_cases(None, "data/dynamic/lido-export.ttl.gz")
+    # exit(1)
 
+    with get_conn() as conn:
+        # init_db(conn)
+        
+        path = "data/dynamic/lido-export.ttl.gz"
+        
+        # process_ttl_laws(conn, path)
+        process_ttl_cases(conn, path)
+
+    # process_ttl_gz(conn, "data/dynamic/lido-export.ttl.gz")
 
     # Total number of sentences in turtle file is about: 19752995 (
     #   19752995 in python,
@@ -334,20 +456,22 @@ if __name__=="__main__":
     # Total number of 'law items', given the list regelingonderdelen
     # ...
 
-    # Benchmarks                      n         t (s)
-    # ---------------------------     -----     -------------------
-    # w/o print, w/o strip (all)      19752982  211s
-    # before with print i             10000     15.8 (5.5s system)
-    # before without print            10000     4.7
-    # buffered reader print i         10000     0.9
-    # buffered reader w/o print i     10000     0.3
-    # buffered reader print i         100000    11.3
-    # buffered reader w/o print i     100000    7.1 then 4.9
+    # Benchmarks                              n           t (s)
+    # ---------------------------    ----------   -------------
+    # w/o print, w/o strip (all)     19_752_982             211
+    # before with print i                10_000              15.8 (5.5s system)
+    # before without print               10_000               4.7
+    # buffered reader print i            10_000               0.9
+    # buffered reader w/o print i        10_000               0.3
+    # buffered reader print i           100_000              11.3
+    # buffered reader w/o print i       100_000               7.1 then 4.9
     
-    # parse for law items             100000    56s
-    # parse for law items (all)       888635    1732.30s (28m)
+    # parse for law items               100_000              56
+    # parse for law items (all)         888_635            1732.30 (28m)
 
-    # projection for scanning all articles    19752982 = 3.07h 
+    # parse w/ graph + insert             4_000              20      200/s
+    #                                   184_000             560.83   320/s
+    #
+    # parsed count cases              3_575_771            2635.12
 
-
-
+    # projection for scanning all articles    19752982 = 3.07h
