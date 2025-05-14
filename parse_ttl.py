@@ -1,11 +1,15 @@
 import io
 import gzip
 from rdflib import Graph, Literal
+from pyoxigraph import RdfFormat, parse, pyoxigraph
 import re
 import sqlite3
 
 from time import perf_counter
 from contextlib import contextmanager
+
+from collections import defaultdict
+
 
 class TimerCollector:
     def __init__(self):
@@ -36,34 +40,47 @@ turtle_head = """
 @prefix hint: <http://www.bigdata.com/queryHints#> .
 @prefix bd: <http://www.bigdata.com/rdf#> .
 @prefix bds: <http://www.bigdata.com/rdf/search#> .
-
 """
 
-def parse_turtle_chunk(buffer):
+def parse_turtle_chunk_1(buffer):
     g = Graph(store="Oxigraph")
     g.parse(data=turtle_head+buffer, format="ox-turtle")
 
-    result = {"subject": None, "predicates": {}}
+    subject = None
+    predicates = {}
 
     for s, p, o in g:
         subj = str(s)
-        if result["subject"] is None:
-            result["subject"] = subj
+        if subject is None:
+            subject = subj.value
 
         pred = str(p)
         if isinstance(o, Literal):
-            # lit = {"lit": o.value}
-            # if o.datatype:
-            #     lit["dtype"] = str(o.datatype)
-            # obj = lit
-
             obj = str(o.value)
         else:
             obj = str(o)
 
-        result["predicates"].setdefault(pred, []).append(obj)
+        predicates.setdefault(pred, []).append(obj)
 
-    return result
+    return subject, predicates
+
+def parse_turtle_chunk(buffer):
+    parsed = parse(input=turtle_head+buffer, format=RdfFormat.TURTLE,)
+    
+    subject = None
+    predicates = {}
+
+    for s, p, o, _ in parsed:
+        subj = str(s)
+        if subject is None:
+            subject = subj
+        
+        pred = p.value
+        obj = o.value
+
+        predicates.setdefault(pred, []).append(obj)
+
+    return subject, predicates
 
 # Connect to PostgreSQL
 def get_conn():
@@ -214,6 +231,7 @@ def get_lawelement_by_lido_id(cursor, lido_id):
     if result:
         return (lido_id, result[0])
     
+    # print("not found:", lido_id)
     lido_id_no_dates = "/".join(lido_id.split("/")[0:8])
     # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826/1711894
     cursor.execute("SELECT id FROM lawelement WHERE lido_id LIKE ?", (lido_id_no_dates,))
@@ -253,12 +271,19 @@ def process_case(cursor, node):
     #     if len(identifiers) and len:
     #     case["ecli_id"] = node['predicates'].get('http://purl.org/dc/terms/title', [None])[0]
 
-    ecli_id = RE_ECLI_FROM_LIDO_ID.search(node["subject"])
-    if ecli_id:
-        case["ecli_id"] = ecli_id.group(1)
-    else:
+    # ecli_id = RE_ECLI_FROM_LIDO_ID.search(node["subject"])
+    # if ecli_id:
+    #     case["ecli_id"] = ecli_id.group(1)
+    # else:
+    #     print("No ecli-id found in: ", node["subject"])
+    #     return
+
+    ecli_id = node["subject"].split("/")[-1]
+    if not ecli_id or ecli_id[0:4] != "ECLI":
         print("No ecli-id found in: ", node["subject"])
         return
+    case["ecli_id"] = ecli_id
+
 
     case["title"] = node['predicates'].get('http://purl.org/dc/terms/title', [None])[0]
     if case["title"] is None:
@@ -387,51 +412,80 @@ def process_ttl_laws(conn, file_path):
     print(f"Finished processing {lawelement_count} law items (with {parse_err_count} parsing errors)")
     # tc.report()
 
+
+# BEFORE BENCH AND COPY:
+# 7500000 -> 674686
+# 676000) committing to db...
+# 678000) committing to db...
+# 680000) committing to db...
+# 682000) committing to db...
+# 7510000 -> 683597
+# 684000) committing to db...
+# 686000) committing to db...
+# 688000) committing to db...
+# 690000) committing to db...
+
 def process_ttl_cases(conn, file_path):
     cursor = conn.cursor()
     # cursor = None
 
     print("Start processing case items")
-
+    
+    tc = TimerCollector()
     parse_err_count = 0
     case_count = 0
+    last_case_count = 0
+
     i = 0
     for chunk in stream_turtle_chunks(file_path):
         i+=1
         
-        if i % 10000 == 0: print(i, "->", case_count)
-        if i < 6730000: continue
+        if i % 50000 == 0:
+            delta = case_count - last_case_count
+            last_case_count = case_count
+            print(i, "->", case_count, f"(+ {delta})" if delta > 0 else "")
+        # if i >= 2000000: break
+        # if i >=1800: break
+        # if i < 6730000: continue
         # if i > 1730000 and i < 6610000: continue
 
+        # with tc.timed("hueristic"):
         # heuristic check if this chunk is relevant for us
         if not 'terms/Jurisprudentie' in chunk:
             continue
-
+        
+        # with tc.timed("parse turtle"):
         try:
-            node = parse_turtle_chunk(chunk)
-            if node is None or node['subject'] is None or node['predicates'] is None:
+            subject, predicates = parse_turtle_chunk(chunk)
+            if subject is None or predicates == {}:
                 continue
         except Exception as err:
             print("Parse tripple error", err)
+            raise err
             print("Chunk:", chunk)
             parse_err_count+=1
             if parse_err_count>=100:
                 exit(1)
             continue
         
-        if typeuri in node['predicates'] and len(node['predicates'][typeuri]) == 1:
-            a = node['predicates'][typeuri][0]
+        # print(predicates)
+        # break
+        if typeuri in predicates and len(predicates[typeuri]) == 1:
+            a = predicates[typeuri][0]
             if a == 'http://linkeddata.overheid.nl/terms/Jurisprudentie':
                 case_count += 1
-                process_case(cursor, node)
+                # with tc.timed("process case"):
+                process_case(cursor, {'subject': subject, 'predicates': predicates})
                 
+                # with tc.timed("commiting"):
                 if case_count % 2000 == 0:
-                    print(f"{case_count}) committing to db...")
+                    print(f"- {case_count}) *commit*")
                     conn.commit()
 
     conn.commit()
     cursor.close()
     print(f"Finished processing {case_count} cases (with {parse_err_count} parsing errors)")
+    tc.report()
 
 if __name__=="__main__":
     
