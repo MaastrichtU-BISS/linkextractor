@@ -11,6 +11,27 @@ from contextlib import contextmanager
 from collections import defaultdict
 
 
+def open_fast_gzip_lines(path):
+    f = gzip.open(path, 'rb')  # binary mode
+    buffered = io.BufferedReader(f, buffer_size=1024 * 1024)  # 1MB buffer
+    # return io.TextIOWrapper(buffered, encoding='utf-8', errors='ignore')
+    return io.TextIOWrapper(buffered, encoding='utf-8')
+
+RE_BWB_FROM_LIDO_ID = re.compile(r"\/terms\/bwb\/id\/(.*?)\/")
+RE_ECLI_FROM_LIDO_ID = re.compile(r"\/terms\/jurisprudentie\/id\/(.*?)$")
+
+regelingonderdelen = {
+    'http://linkeddata.overheid.nl/terms/Wet': 'wet',
+    'http://linkeddata.overheid.nl/terms/Deel': 'deel',
+    'http://linkeddata.overheid.nl/terms/Boek': 'boek',
+    'http://linkeddata.overheid.nl/terms/Titeldeel': 'titeldeel',
+    'http://linkeddata.overheid.nl/terms/Hoofdstuk': 'hoofdstuk',
+    'http://linkeddata.overheid.nl/terms/Artikel': 'artikel',
+    'http://linkeddata.overheid.nl/terms/Paragraaf': 'paragraaf',
+    'http://linkeddata.overheid.nl/terms/SubParagraaf': 'subparagraaf',
+    'http://linkeddata.overheid.nl/terms/Afdeling': 'afdeling',
+}
+
 class TimerCollector:
     def __init__(self):
         self.timings = {}
@@ -84,7 +105,7 @@ def parse_turtle_chunk(buffer):
 
 # Connect to PostgreSQL
 def get_conn():
-    return sqlite3.connect("caselaw.db")
+    return sqlite3.connect("caselaw-dev.db")
 
 def init_db(conn):
     print("Initializing database")
@@ -134,6 +155,27 @@ def init_db(conn):
     cursor.close()
     print("Database initialized.")
 
+def stream_turtle_chunks(file_path):
+    in_multiline_string = False
+    buffer = []
+
+    with open_fast_gzip_lines(file_path) as f:
+        for line in f:
+            buffer.append(line)
+
+            # Count the number of triple quotes to toggle state
+            triple_quote_count = line.count('"""') + line.count("'''")
+            if triple_quote_count % 2 == 1:
+                # Odd number of triple quotes in line - toggle state
+                in_multiline_string = not in_multiline_string
+
+            # if not in_multiline_string and line.strip().endswith('.'):
+            if not in_multiline_string and len(line) > 1 and line[-2] == ".":
+                chunk = ''.join(buffer)
+                yield chunk
+                buffer.clear()
+
+
 def insert_lawelement(cursor, lawelement):
     assert all(key in lawelement and lawelement[key] is not None for key in ['type', 'bwb_id', 'lido_id', 'title'])
     
@@ -148,27 +190,6 @@ def insert_lawelement(cursor, lawelement):
             # lawelement['title'],
         )
     )
-
-def open_fast_gzip_lines(path):
-    f = gzip.open(path, 'rb')  # binary mode
-    buffered = io.BufferedReader(f, buffer_size=1024 * 1024)  # 1MB buffer
-    # return io.TextIOWrapper(buffered, encoding='utf-8', errors='ignore')
-    return io.TextIOWrapper(buffered, encoding='utf-8')
-
-RE_BWB_FROM_LIDO_ID = re.compile(r"\/terms\/bwb\/id\/(.*?)\/")
-RE_ECLI_FROM_LIDO_ID = re.compile(r"\/terms\/jurisprudentie\/id\/(.*?)$")
-
-regelingonderdelen = {
-    'http://linkeddata.overheid.nl/terms/Wet': 'wet',
-    'http://linkeddata.overheid.nl/terms/Deel': 'deel',
-    'http://linkeddata.overheid.nl/terms/Boek': 'boek',
-    'http://linkeddata.overheid.nl/terms/Titeldeel': 'titeldeel',
-    'http://linkeddata.overheid.nl/terms/Hoofdstuk': 'hoofdstuk',
-    'http://linkeddata.overheid.nl/terms/Artikel': 'artikel',
-    'http://linkeddata.overheid.nl/terms/Paragraaf': 'paragraaf',
-    'http://linkeddata.overheid.nl/terms/SubParagraaf': 'subparagraaf',
-    'http://linkeddata.overheid.nl/terms/Afdeling': 'afdeling',
-}
 
 def process_lawelement(cursor, node, type):
                         
@@ -213,12 +234,6 @@ def process_lawelement(cursor, node, type):
     # print(f"processing the {le['type']} with bwb-id {le['bwb_id']}")
     insert_lawelement(cursor, le)
 
-def insert_case(cursor, case):
-    assert all(key in case and case[key] is not None for key in ['ecli_id', 'title'])
-
-    cursor.execute("INSERT OR IGNORE INTO legal_case (ecli_id, title) VALUES (?, ?) ", (case['ecli_id'], case['title'],))
-    return cursor.lastrowid
-
 def get_lawelement_by_lido_id(cursor, lido_id):
     if not 'terms/bwb/id' in lido_id:
         return (None, None)
@@ -226,7 +241,7 @@ def get_lawelement_by_lido_id(cursor, lido_id):
     # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826/1711894/1821-08-01/1821-08-01
     # ['https:', '', 'linkeddata.overheid.nl', 'terms', 'bwb', 'id', 'BWBR0001826', '1711894', '1821-08-01', '1821-08-01']
     
-    cursor.execute("SELECT id FROM lawelement WHERE lido_id = ?", (lido_id,))
+    cursor.execute("SELECT id FROM lawelement WHERE lido_id = ? LIMIT 1", (lido_id,))
     result = cursor.fetchone()
     if result:
         return (lido_id, result[0])
@@ -234,14 +249,14 @@ def get_lawelement_by_lido_id(cursor, lido_id):
     # print("not found:", lido_id)
     lido_id_no_dates = "/".join(lido_id.split("/")[0:8])
     # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826/1711894
-    cursor.execute("SELECT id FROM lawelement WHERE lido_id LIKE ?", (lido_id_no_dates,))
+    cursor.execute("SELECT id FROM lawelement WHERE lido_id LIKE ? LIMIT 1", (lido_id_no_dates,))
     result = cursor.fetchone()
     if result:
         return (lido_id, result[0])
     
     lido_id_only_bwb = "/".join(lido_id.split("/")[0:7])
     # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826
-    cursor.execute("SELECT id FROM lawelement WHERE lido_id LIKE ?", (lido_id_only_bwb,))
+    cursor.execute("SELECT id FROM lawelement WHERE lido_id LIKE ? LIMIT 1", (lido_id_only_bwb,))
     result = cursor.fetchone()
     if result:
         return (lido_id, result[0])
@@ -256,11 +271,17 @@ def insert_caselaw(cursor, caselaw):
             caselaw['case_id'],
             caselaw['law_id'],
             caselaw['source'],
-            caselaw['lido_id'],
             caselaw.get('jc_id'),
+            caselaw['lido_id'],
             caselaw.get('opschrift'),
         )
     )
+
+def insert_case(cursor, case):
+    assert all(key in case and case[key] is not None for key in ['ecli_id', 'title'])
+
+    cursor.execute("INSERT OR IGNORE INTO legal_case (ecli_id, title) VALUES (?, ?) ", (case['ecli_id'], case['title'],))
+    return cursor.lastrowid
 
 def process_case(cursor, node):
     case = {}
@@ -333,25 +354,6 @@ def process_case(cursor, node):
     # exit(1)
 
 
-def stream_turtle_chunks(file_path):
-    in_multiline_string = False
-    buffer = []
-
-    with open_fast_gzip_lines(file_path) as f:
-        for line in f:
-            buffer.append(line)
-
-            # Count the number of triple quotes to toggle state
-            triple_quote_count = line.count('"""') + line.count("'''")
-            if triple_quote_count % 2 == 1:
-                # Odd number of triple quotes in line - toggle state
-                in_multiline_string = not in_multiline_string
-
-            # if not in_multiline_string and line.strip().endswith('.'):
-            if not in_multiline_string and len(line) > 1 and line[-2] == ".":
-                chunk = ''.join(buffer)
-                yield chunk
-                buffer.clear()
 
 
 typeuri = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
