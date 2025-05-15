@@ -5,3 +5,5 @@ data/dynamic/*
 database.db
 .env
 .pytest_cache
+caselaw.db
+error.log
