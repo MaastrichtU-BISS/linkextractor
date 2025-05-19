@@ -196,7 +196,7 @@ def process_ttl_cases(conn, file_path):
                     process_case(cursor, subject, predicates)
                     
                     # with tc.timed("commiting"):
-                    if case_count % 2000 == 0:
+                    if case_count % 10000 == 0:
                         delta = case_count - last_case_count
                         print(" ", i, "->", case_count, "*commit*")
                         conn.commit()

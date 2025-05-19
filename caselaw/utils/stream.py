@@ -7,12 +7,16 @@ def open_fast_gzip_lines(path):
     # return io.TextIOWrapper(buffered, encoding='utf-8', errors='ignore')
     return io.TextIOWrapper(buffered, encoding='utf-8')
 
-
-def stream_turtle_chunks(file_path):
+def stream_turtle_chunks(file_path, gzip=True):
     in_multiline_string = False
     buffer = []
+    
+    if gzip:
+        reader = open_fast_gzip_lines(file_path)
+    else:
+        reader = open(file_path, "r")
 
-    with open_fast_gzip_lines(file_path) as f:
+    with reader as f:
         for line in f:
             buffer.append(line)
 

@@ -55,3 +55,13 @@ def parse_turtle_chunk(buffer):
         predicates.setdefault(pred, []).append(obj)
 
     return subject, predicates
+
+def parse_turtle_triples(buffer):
+    parsed = parse(input=turtle_head+buffer, format=RdfFormat.TURTLE,)
+    
+    for s, p, o, _ in parsed:
+        subj = str(s.value)        
+        pred = p.value
+        obj = o.value
+
+        yield subj, pred, obj

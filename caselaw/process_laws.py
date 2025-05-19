@@ -43,7 +43,7 @@ def process_lawelement(cursor, type, subject, predicates):
 
     # http://linkeddata.overheid.nl/terms/bwb/id/BWBR0001831/799354/1827-12-13/1827-12-13
     stripped_id = strip_lido_law_id(subject)
-    if le["lido_id"] is None:
+    if stripped_id is None:
         print("Item with subject", subject, "has incorrect format")
         return
     
@@ -66,7 +66,7 @@ def process_lawelement(cursor, type, subject, predicates):
 
     bwb_match = le["lido_id"].split("/")[0]
     if bwb_match:
-        le['bwb_id'] = bwb_match.group(1)
+        le['bwb_id'] = bwb_match
 
     onderdeel_nummer = predicates.get('http://linkeddata.overheid.nl/terms/heeftOnderdeelNummer')
     if onderdeel_nummer is not None and len(onderdeel_nummer) == 1:

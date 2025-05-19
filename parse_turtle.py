@@ -1,4 +1,5 @@
-from caselaw.db import get_conn
+from caselaw.db import get_conn, init_db
+from caselaw.insert_triples import process_all_triples
 from caselaw.process_cases import process_ttl_cases
 from caselaw.process_laws import process_ttl_laws
 import sys
@@ -6,13 +7,15 @@ import sys
 if __name__=="__main__":
     # process_ttl_cases(None, "data/dynamic/lido-export.ttl.gz")
     
-    with get_conn("caselaw/caselaw.db") as conn:
-        # init_db(conn)
+    with get_conn("caselaw.db") as conn:
+        init_db(conn)
         
         path = "./data/dynamic/lido-export.ttl.gz"
         
         # process_ttl_laws(conn, path)
         process_ttl_cases(conn, path)
+
+        # process_all_triples(conn, path)
 
     # process_ttl_gz(conn, "data/dynamic/lido-export.ttl.gz")
 
