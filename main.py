@@ -1,6 +1,5 @@
 from src.prepare import prepare
 from src.search import query_exact, query_in_text
-from src.permutations import query_perms
 from src.utils import *
 
 # start set wrkdir

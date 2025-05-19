@@ -12,11 +12,14 @@ def init_db(conn):
     cursor.executescript("""
         CREATE TABLE IF NOT EXISTS legal_case (
             id INTEGER PRIMARY KEY,
-            ecli_id TEXT UNIQUE,
-            title TEXT
+            ecli_id TEXT UNIQUE NOT NULL,
+            title TEXT,
+            celex_id TEXT UNIQUE,
+            zaaknummer TEXT UNIQUE,
+            uitspraakdatum DATE
         );
         
-        CREATE TABLE IF NOT EXISTS lawelement (
+        CREATE TABLE IF NOT EXISTS law_element (
             id INTEGER PRIMARY KEY,
             -- parent_id INTEGER,
             type TEXT CHECK (type IN ('wet', 'boek', 'deel', 'titeldeel', 'hoofdstuk', 'artikel', 'paragraaf', 'subparagraaf', 'afdeling')),
@@ -26,15 +29,15 @@ def init_db(conn):
             number TEXT,
             title TEXT,
             alt_title TEXT
-            -- FOREIGN KEY (parent_id) REFERENCES lawelement(id)
+            -- FOREIGN KEY (parent_id) REFERENCES law_element(id)
         );
 
         CREATE TABLE IF NOT EXISTS law_alias (
             id INTEGER PRIMARY KEY,
-            lawelement_id INTEGER,
+            law_element_id INTEGER,
             alias TEXT,
             source TEXT,
-            FOREIGN KEY (lawelement_id) REFERENCES lawelement(id)
+            FOREIGN KEY (law_element_id) REFERENCES law_element(id)
         );
 
         CREATE TABLE IF NOT EXISTS case_law (
@@ -46,7 +49,7 @@ def init_db(conn):
             lido_id TEXT,
             opschrift TEXT,
             FOREIGN KEY (case_id) REFERENCES legal_case(id),
-            FOREIGN KEY (law_id) REFERENCES lawelement(id)
+            FOREIGN KEY (law_id) REFERENCES law_element(id)
         );
     """)
     conn.commit()

@@ -128,7 +128,7 @@ def init_db(conn):
             number TEXT,
             title TEXT,
             alt_title TEXT
-            -- FOREIGN KEY (parent_id) REFERENCES lawelement(id)
+            -- FOREIGN KEY (parent_id) REFERENCES law_element(id)
         );
 
         CREATE TABLE IF NOT EXISTS law_alias (
