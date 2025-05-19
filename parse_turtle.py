@@ -12,7 +12,7 @@ if __name__=="__main__":
         # path = "./data/dynamic/lido-export.ttl.gz"
         
         # process_ttl_laws(conn, "./data/dynamic/lido-law-sort.nt") # 2m13s
-        process_ttl_cases(conn, "./data/dynamic/lido-cases-sort.nt")
+        process_ttl_cases(conn, "./data/dynamic/lido-cases-sort.nt") # 6m
 
         # process_all_triples(conn, path)
 

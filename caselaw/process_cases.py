@@ -1,14 +1,7 @@
-from collections import defaultdict
 import sys
-
-from pyoxigraph import RdfFormat, parse
-
-from caselaw.constants import TERM_URI_TYPE
 from caselaw.process_laws import strip_lido_law_id
 from caselaw.utils.benchmarking import TimerCollector
-from caselaw.utils.stream import stream_triples, stream_turtle_chunks
-from caselaw.utils.turtle import parse_turtle_chunk
-
+from caselaw.utils.stream import stream_triples
 
 def get_law_element_by_lido_id(cursor, lido_id):
     # if not 'terms/bwb/id' in lido_id:
@@ -25,6 +18,8 @@ def get_law_element_by_lido_id(cursor, lido_id):
     if result:
         return (stripped_id, result[0])
     
+    # !! TODO !! -> extra columns for parts (heeftBWBLabelId), instead of LIKE query
+
     # # print("not found:", lido_id)
     # lido_id_no_dates = "/".join(stripped_id.split("/")[0:2])
     # # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826/1711894
@@ -135,33 +130,6 @@ def process_case_block(cursor, subject, props):
             }
             insert_caselaw(cursor, caselaw)
 
-# map_terms = {
-#     'http://purl.org/dc/terms/identifier': 'ecli_id',
-#     'http://purl.org/dc/terms/type': 'dct_type',
-#     'http://www.w3.org/1999/02/22-rdf-syntax-ns#type': 'lido_type',
-#     'http://purl.org/dc/terms/title': 'title_1',
-#     'http://www.w3.org/2000/01/rdf-schema#label': 'title_2',
-#     'http://www.w3.org/2004/02/skos/core#prefLabel': 'title_3',
-#     'http://linkeddata.overheid.nl/terms/refereertAan': 'link_ref',
-#     'http://linkeddata.overheid.nl/terms/linkt': 'link_linkt',
-#     'http://linkeddata.overheid.nl/terms/heeftUitspraakdatum': 'datum_uitspraak',
-#     'http://linkeddata.overheid.nl/terms/heeftZaaknummer': 'zaaknummer',
-# }
-
-def parse_subject_block(triple_block):
-    """
-    triples: list of raw N-Triples lines (strings) for a single subject
-    Returns: list of (predicate, object) pairs
-    """
-    parsed = list(parse(triple_block.encode(), format=RdfFormat.N_TRIPLES))
-    # print(parsed)
-    d = defaultdict(list)
-    for t in parsed:
-        d[map_terms[t.predicate.value]].append(t.object.value)
-    return dict(d)
-    # return [(t.predicate.value, t.object.value) for t in parsed]
-    # return {map_terms[t.predicate.value]: t.object for t in parsed}
-
 def process_ttl_cases(conn, filename):
     
     cursor = conn.cursor()
@@ -202,67 +170,3 @@ def process_ttl_cases(conn, filename):
     conn.commit()
     cursor.close()
     print(f"Finished processing {case_count} cases (with {err_count} errors)")
-
-def process_ttl_cases_OLD(conn, file_path):
-    cursor = conn.cursor()
-    # cursor = None
-
-    print("Start processing case items")
-    
-    # tc = TimerCollector()
-    err_count = 0
-    case_count = 0
-    last_case_count = 0
-
-    i = 0
-    for chunk in stream_turtle_chunks(file_path):
-        try:
-            i+=1
-            
-            if i % 50000 == 0:
-                delta = case_count - last_case_count
-                last_case_count = case_count
-                print("-", i, "->", case_count, f"(+ {delta})" if delta > 0 else "")
-
-            # if i >= 2_000_000: break
-            # if i >=1800: break
-            # if i < 6_800_000: continue
-            # if i > 7_000_000: break
-            # if i > 1730000 and i < 6610000: continue
-
-            # with tc.timed("hueristic"):
-            # heuristic check if this chunk is relevant for us
-            if not 'terms/Jurisprudentie' in chunk:
-                continue
-            
-            # with tc.timed("parse turtle"):
-            subject, predicates = parse_turtle_chunk(chunk)
-            if subject is None or predicates == {}:
-                continue
-            
-            if TERM_URI_TYPE in predicates and len(predicates[TERM_URI_TYPE]) == 1:
-                a = predicates[TERM_URI_TYPE][0]
-                if a == 'http://linkeddata.overheid.nl/terms/Jurisprudentie':
-                    case_count += 1
-                    # with tc.timed("process case"):
-                    process_case(cursor, subject, predicates)
-                    
-                    # with tc.timed("commiting"):
-                    if case_count % 50000 == 0:
-                        delta = case_count - last_case_count
-                        print(" ", i, "->", case_count, "*commit*")
-                        conn.commit()
-        
-        except Exception as err:
-            print("** Error:", err, file=sys.stderr)
-            print("** Chunk of error:", chunk, file=sys.stderr)
-            err_count+=1
-            if err_count>=100:
-                print("Max error count exceeded. Raising error.")
-                raise err
-            continue
-    
-    conn.commit()
-    cursor.close()
-    print(f"Finished processing {case_count} cases (with {err_count} errors)")
-    # tc.report()

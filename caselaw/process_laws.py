@@ -1,10 +1,8 @@
 
 import sys
-from caselaw.constants import RE_BWB_FROM_LIDO_ID, REGELING_ONDERDELEN, TERM_URI_TYPE
+from caselaw.constants import REGELING_ONDERDELEN, TERM_URI_TYPE
 from caselaw.utils.print import printerr
-from caselaw.utils.stream import stream_triples, stream_turtle_chunks
-from caselaw.utils.turtle import parse_turtle_chunk
-
+from caselaw.utils.stream import stream_triples
 
 def insert_law_element(cursor, law_element):
     assert all(key in law_element and law_element[key] is not None for key in ['type', 'bwb_id', 'lido_id', 'title'])
@@ -129,64 +127,3 @@ def process_ttl_laws(conn, filename):
     conn.commit()
     cursor.close()
     print(f"Finished processing {law_count} law elements (with {err_count} errors)")
-
-def process_ttl_laws_old(conn, file_path):
-    cursor = conn.cursor()
-    # tc = TimerCollector()
-    print("Start processing law items")
-
-    parse_err_count = 0
-    law_element_count = 0
-
-    i=0
-    for chunk in stream_turtle_chunks(file_path):
-        i+=1
-        if i % 10000 == 0: print(i, "->", law_element_count)
-        
-        # if i > 1_000_000:
-        #     break
-        
-        # heuristic check if this chunk is relevant for us
-        if 'terms/Wet' not in chunk and \
-            'terms/Deel' not in chunk and \
-            'terms/Boek' not in chunk and \
-            'terms/Titeldeel' not in chunk and \
-            'terms/Hoofdstuk' not in chunk and \
-            'terms/Artikel' not in chunk and \
-            'terms/Paragraaf' not in chunk and \
-            'terms/SubParagraaf' not in chunk and \
-            'terms/Afdeling' not in chunk:
-                continue
-        
-        try:
-            # with tc.timed("parse turtle"):
-            subject, predicates = parse_turtle_chunk(chunk)
-            if subject is None or predicates == {}:
-                continue
-        except Exception as err:
-            print("Parse tripple error", err)
-            print("Chunk:", chunk)
-            raise err
-            parse_err_count+=1
-            # if parse_err_count>=100:
-            #     exit(1)
-            continue
-        
-        if TERM_URI_TYPE in predicates and len(predicates[TERM_URI_TYPE]) == 1:
-            a = predicates[TERM_URI_TYPE][0]
-            if a in REGELING_ONDERDELEN:
-                law_element_count += 1
-                
-                # with tc.timed("process element"):
-                process_law_element(cursor, REGELING_ONDERDELEN[a], subject, predicates)
-
-                # with tc.timed("commit to db"):
-                if law_element_count % 2000 == 0:
-                    print(f"{law_element_count}) committing to db...")
-                    conn.commit()
-    
-    conn.commit()
-    cursor.close()
-    print(f"Finished processing {law_element_count} law items (with {parse_err_count} parsing errors)")
-    # tc.report()
-
