@@ -44,15 +44,28 @@ def insert_from_trie_file(file_path, db_name):
             
             id_name, aliases = parts
             alias_list = aliases.split("\t")
+
+            
+            
+            # CREATE TABLE IF NOT EXISTS law_alias (
+            #     id INTEGER PRIMARY KEY,
+            #     alias TEXT NOT NULL,
+            #     bwb_id TEXT NOT NULL,
+            #     source TEXT CHECK (source IN ('opschrift', 'bwbidlist')),
+            #     UNIQUE (bwb_id, alias COLLATE NOCASE)
+            #     -- FOREIGN KEY (law_element_id) REFERENCES law_element(id) ON DELETE CASCADE
+            # );
+            # CREATE INDEX IF NOT EXISTS idx_law_alias ON law_alias(alias COLLATE NOCASE);
+            
             
             # Insert into refs table
-            cursor.execute("INSERT OR IGNORE INTO refs (name) VALUES (?)", (id_name,))
-            cursor.execute("SELECT id FROM refs WHERE name = ?", (id_name,))
-            ref_id = cursor.fetchone()[0]
+            # cursor.execute("INSERT OR IGNORE INTO refs (name) VALUES (?)", (id_name,))
+            # cursor.execute("SELECT id FROM refs WHERE name = ?", (id_name,))
+            # ref_id = cursor.fetchone()[0]
             
             # Insert into aliases table
             for alias in alias_list:
-                cursor.execute("INSERT OR IGNORE INTO aliases (alias, ref) VALUES (?, ?)", (alias, ref_id))
+                cursor.execute("INSERT OR IGNORE INTO law_alias (alias, bwb_id, source) VALUES (?, ?, 'bwbidlist')", (alias, id_name,))
     
     conn.commit()
     conn.close()
@@ -63,5 +76,5 @@ def prepare(db_name):
 
     if not os.path.exists(db_name):
         print("Creating database...")
-        create_database(db_name)
+        # create_database(db_name)
         insert_from_trie_file(trie_file, db_name)

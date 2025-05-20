@@ -1,4 +1,6 @@
-from caselaw.db import get_conn, init_db
+import os
+# from caselaw.db.postgres import get_conn as get_postgres_conn, init_db as init_postgres_db
+from caselaw.db.sqlite import get_conn, init_db
 from caselaw.process_cases import process_ttl_cases
 from caselaw.process_laws import process_ttl_laws
 import sys
@@ -6,15 +8,13 @@ import sys
 if __name__=="__main__":
     # process_ttl_cases(None, "data/dynamic/lido-export.ttl.gz")
     
-    with get_conn("caselaw-dev.db") as conn:
+    with get_conn("caselaw.db") as conn:
         init_db(conn)
         
         # path = "./data/dynamic/lido-export.ttl.gz"
         
         # process_ttl_laws(conn, "./data/dynamic/lido-law-sort.nt") # 2m13s
         process_ttl_cases(conn, "./data/dynamic/lido-cases-sort.nt") # 6m
-
-        # process_all_triples(conn, path)
 
     # process_ttl_gz(conn, "data/dynamic/lido-export.ttl.gz")
 

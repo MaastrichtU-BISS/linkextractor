@@ -49,12 +49,12 @@ def init_db(conn):
         CREATE TABLE IF NOT EXISTS law_alias (
             id INTEGER PRIMARY KEY,
             alias TEXT NOT NULL,
-            law_element_id INTEGER NOT NULL,
+            -- law_element_id INTEGER NOT NULL,
+            bwb_id TEXT NOT NULL,
             source TEXT CHECK (source IN ('opschrift', 'bwbidlist')),
-            UNIQUE (alias COLLATE NOCASE, law_element_id)
-            FOREIGN KEY (law_element_id) REFERENCES law_element(id) ON DELETE CASCADE
+            UNIQUE (bwb_id, alias COLLATE NOCASE)
+            -- FOREIGN KEY (law_element_id) REFERENCES law_element(id) ON DELETE CASCADE
         );
-                         
         CREATE INDEX IF NOT EXISTS idx_law_alias ON law_alias(alias COLLATE NOCASE);
     """)
     conn.commit()
