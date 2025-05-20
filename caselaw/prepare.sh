@@ -1,9 +1,17 @@
 echo "enter commands inside this script manually"
 return
 
+# setup
+# 1. download serdi from https://launchpad.net/ubuntu/plucky/amd64/serdi/0.32.4-1
+wget http://launchpadlibrarian.net/775571639/serdi_0.32.4-1_amd64.deb
+sudo dpkg -i serdi_0.32.4-1_amd64.deb
+
+# 2. download turtle export
+wget https://linkeddata.overheid.nl/export/lido-export.ttl.gz
+
 # Pipeline for cases
 
-time cat lido-export.ttl \
+time zcat lido-export.ttl.gz \
 | serdi -l -i turtle -o ntriples - \
 | grep "^<http://linkeddata.overheid.nl/terms/jurisprudentie/id/" \
 | fgrep \
@@ -28,7 +36,7 @@ cat lido-cases-sort.nt | fgrep "http://purl.org/dc/terms/type" | wc -l
 
 # Pipeline for cases
 
-time cat lido-export.ttl \
+time zcat lido-export.ttl.gz \
 | serdi -l -i turtle -o ntriples - \
 | grep "^<http://linkeddata.overheid.nl/terms/bwb/id/" \
 | fgrep \

@@ -4,36 +4,28 @@ from caselaw.utils.benchmarking import TimerCollector
 from caselaw.utils.stream import stream_triples
 
 def get_law_element_by_lido_id(cursor, lido_id):
-    # if not 'terms/bwb/id' in lido_id:
-    #     return (None, None)
-    stripped_id = strip_lido_law_id(lido_id)
+    stripped_id = strip_lido_law_id(lido_id) # -> BWBR0001826/1711894/1821-08-01/1821-08-01
     if stripped_id is None: # could be due to being ref to ecli
         return (None, None)
-
-    # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826/1711894/1821-08-01/1821-08-01
-    # ['https:', '', 'linkeddata.overheid.nl', 'terms', 'bwb', 'id', 'BWBR0001826', '1711894', '1821-08-01', '1821-08-01']
     
     cursor.execute("SELECT id FROM law_element INDEXED BY sqlite_autoindex_law_element_1 WHERE lido_id = ? LIMIT 1", (stripped_id,))
     result = cursor.fetchone()
     if result:
         return (stripped_id, result[0])
     
-    # !! TODO !! -> extra columns for parts (heeftBWBLabelId), instead of LIKE query
-
     # # print("not found:", lido_id)
-    # lido_id_no_dates = "/".join(stripped_id.split("/")[0:2])
-    # # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826/1711894
-    # cursor.execute("SELECT id FROM law_element INDEXED BY sqlite_autoindex_law_element_1 WHERE lido_id LIKE ? LIMIT 1", (lido_id_no_dates,))
-    # result = cursor.fetchone()
-    # if result:
-    #     return (stripped_id, result[0])
+    bwb_id, bwb_label_id = stripped_id.split("/")[0:2]
+    # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826/1711894
+    cursor.execute("SELECT id FROM law_element INDEXED BY idx_bwb_id WHERE bwb_id = ? AND bwb_label_id = ? LIMIT 1", (bwb_id, bwb_label_id,))
+    result = cursor.fetchone()
+    if result:
+        return ("/".join([bwb_id, bwb_label_id]), result[0])
     
-    # lido_id_only_bwb = "/".join(lido_id.split("/")[0:1])
-    # # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826
-    # cursor.execute("SELECT id FROM law_element INDEXED BY sqlite_autoindex_law_element_1 WHERE lido_id LIKE ? LIMIT 1", (lido_id_only_bwb,))
-    # result = cursor.fetchone()
-    # if result:
-    #     return (lido_id, result[0])
+    # https://linkeddata.overheid.nl/terms/bwb/id/BWBR0001826
+    cursor.execute("SELECT id FROM law_element INDEXED BY idx_bwb_id WHERE bwb_id = ? LIMIT 1", (bwb_id,))
+    result = cursor.fetchone()
+    if result:
+        return (bwb_id, result[0])
     
     return (None, None)
 
@@ -139,7 +131,7 @@ def process_ttl_cases(conn, filename):
     last_case_count = 0
     err_count = 0
 
-    print("Start processing case items (2)")
+    print("Start processing case items")
 
     for subject, props in stream_triples(filename):
         try:

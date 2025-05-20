@@ -2,6 +2,9 @@
 # Connect to PostgreSQL
 import sqlite3
 
+def cursor_is_sqlite(cursor):
+    return isinstance(cursor, sqlite3.Cursor)
+
 def get_conn(db="caselaw.db"):
     return sqlite3.connect(db)
 
@@ -20,15 +23,16 @@ def init_db(conn):
         );
         
         CREATE TABLE IF NOT EXISTS law_element (
-            id INTEGER PRIMARY KEY
+            id INTEGER PRIMARY KEY,
             type TEXT CHECK (type IN ('wet', 'boek', 'deel', 'titeldeel', 'hoofdstuk', 'artikel', 'paragraaf', 'subparagraaf', 'afdeling')),
-            bwb_id INTEGER,
+            bwb_id TEXT,
+            bwb_label_id INTEGER,
             lido_id TEXT UNIQUE,
             jc_id TEXT UNIQUE,
             number TEXT,
-            title TEXT,
-            alt_title TEXT
+            title TEXT
         );
+        CREATE INDEX IF NOT EXISTS idx_bwb_id ON law_element(bwb_id, bwb_label_id);
 
         CREATE TABLE IF NOT EXISTS case_law (
             id INTEGER PRIMARY KEY,
@@ -50,7 +54,8 @@ def init_db(conn):
             UNIQUE (alias COLLATE NOCASE, law_element_id)
             FOREIGN KEY (law_element_id) REFERENCES law_element(id) ON DELETE CASCADE
         );
-        CREATE INDEX idx_law_alias ON law_alias(alias COLLATE NOCASE);
+                         
+        CREATE INDEX IF NOT EXISTS idx_law_alias ON law_alias(alias COLLATE NOCASE);
     """)
     conn.commit()
     cursor.close()

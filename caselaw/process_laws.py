@@ -1,23 +1,46 @@
 
 import sys
 from caselaw.constants import REGELING_ONDERDELEN, TERM_URI_TYPE
+from caselaw.db.sqlite import cursor_is_sqlite
 from caselaw.utils.print import printerr
 from caselaw.utils.stream import stream_triples
 
 def insert_law_element(cursor, law_element):
     assert all(key in law_element and law_element[key] is not None for key in ['type', 'bwb_id', 'lido_id', 'title'])
     
-    cursor.execute("INSERT OR IGNORE INTO law_element (type, bwb_id, lido_id, jc_id, number, title) VALUES (?, ?, ?, ?, ?, ?);",
-        (
-            law_element['type'], 
-            law_element['bwb_id'],
-            law_element['lido_id'],
-            law_element.get('jc_id'),
-            law_element.get('number'),
-            law_element.get('title'),
-            # law_element['title'],
+    if cursor_is_sqlite(cursor):
+        cursor.execute("INSERT OR IGNORE INTO law_element (type, bwb_id, bwb_label_id, lido_id, jc_id, number, title) VALUES (?, ?, ?, ?, ?, ?, ?);",
+            (
+                law_element['type'], 
+                law_element['bwb_id'],
+                law_element.get('bwb_label_id'),
+                law_element['lido_id'],
+                law_element.get('jc_id'),
+                law_element.get('number'),
+                law_element.get('title'),
+                # law_element['title'],
+            )
         )
-    )
+    else:
+        cursor.execute("""
+            INSERT INTO law_element
+                (type, bwb_id, bwb_label_id, lido_id, jc_id, number, title)
+            VALUES
+                (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT DO NOTHING;
+        """,
+            (
+                law_element['type'], 
+                law_element['bwb_id'],
+                law_element.get('bwb_label_id'),
+                law_element['lido_id'],
+                law_element.get('jc_id'),
+                law_element.get('number'),
+                law_element.get('title'),
+                # law_element['title'],
+            )
+        )
+        
 
 def strip_lido_law_id(lido_law_id):
     if lido_law_id[0:43] == "http://linkeddata.overheid.nl/terms/bwb/id/" and len(lido_law_id) > 43:
@@ -25,18 +48,6 @@ def strip_lido_law_id(lido_law_id):
     return None
 
 def process_law_element(cursor, type, subject, predicates):
-                        
-    #   id INTEGER PRIMARY KEY,
-    # -- parent_id INTEGER,
-    #   bwb_id INTEGER,
-    # x  lidoid TEXT UNIQUE,
-    # x  jcid TEXT NOT NULL UNIQUE,
-    #   number TEXT,
-    # x type TEXT,
-    # x title TEXT,
-    #   alt_title TEXT,
-    #   FOREIGN KEY (parent_id) REFERENCES law_element(id)
-
     le = {}
 
     le["type"] = "law"
@@ -55,6 +66,10 @@ def process_law_element(cursor, type, subject, predicates):
     else:
         printerr("No BWB-id for subject:", subject)
         return False
+
+    bwb_label_id_match = le["lido_id"].split("/")[1]
+    if bwb_label_id_match:
+        le['bwb_label_id'] = bwb_label_id_match
 
     le["title"] = predicates.get('http://purl.org/dc/terms/title', [None])[0]
     if le["title"] is None:
@@ -75,7 +90,6 @@ def process_law_element(cursor, type, subject, predicates):
     if onderdeel_nummer is not None and len(onderdeel_nummer) == 1:
         le['number'] = onderdeel_nummer[0]
 
-    # print(f"processing the {le['type']} with bwb-id {le['bwb_id']}")
     insert_law_element(cursor, le)
 
 def process_ttl_laws(conn, filename):
@@ -87,7 +101,7 @@ def process_ttl_laws(conn, filename):
     law_count = 0
     err_count = 0
 
-    print("Start processing law items (2)")
+    print("Start processing law items")
 
     for subject, props in stream_triples(filename):
         try:
@@ -104,7 +118,6 @@ def process_ttl_laws(conn, filename):
                 
                 # with tc.timed("process element"):
                 process_law_element(cursor, REGELING_ONDERDELEN[type], subject, props)
-                # process_case_block(cursor, subject, props)
 
                 # with tc.timed("commit to db"):
                 if law_count % 50000 == 0:
