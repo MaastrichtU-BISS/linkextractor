@@ -20,8 +20,7 @@ def init_db(conn):
         );
         
         CREATE TABLE IF NOT EXISTS law_element (
-            id INTEGER PRIMARY KEY,
-            -- parent_id INTEGER,
+            id INTEGER PRIMARY KEY
             type TEXT CHECK (type IN ('wet', 'boek', 'deel', 'titeldeel', 'hoofdstuk', 'artikel', 'paragraaf', 'subparagraaf', 'afdeling')),
             bwb_id INTEGER,
             lido_id TEXT UNIQUE,
@@ -29,15 +28,6 @@ def init_db(conn):
             number TEXT,
             title TEXT,
             alt_title TEXT
-            -- FOREIGN KEY (parent_id) REFERENCES law_element(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS law_alias (
-            id INTEGER PRIMARY KEY,
-            law_element_id INTEGER,
-            alias TEXT,
-            source TEXT,
-            FOREIGN KEY (law_element_id) REFERENCES law_element(id)
         );
 
         CREATE TABLE IF NOT EXISTS case_law (
@@ -51,6 +41,16 @@ def init_db(conn):
             FOREIGN KEY (case_id) REFERENCES legal_case(id),
             FOREIGN KEY (law_id) REFERENCES law_element(id)
         );
+        
+        CREATE TABLE IF NOT EXISTS law_alias (
+            id INTEGER PRIMARY KEY,
+            alias TEXT NOT NULL,
+            law_element_id INTEGER NOT NULL,
+            source TEXT CHECK (source IN ('opschrift', 'bwbidlist')),
+            UNIQUE (alias COLLATE NOCASE, law_element_id)
+            FOREIGN KEY (law_element_id) REFERENCES law_element(id) ON DELETE CASCADE
+        );
+        CREATE INDEX idx_law_alias ON law_alias(alias COLLATE NOCASE);
     """)
     conn.commit()
     cursor.close()
