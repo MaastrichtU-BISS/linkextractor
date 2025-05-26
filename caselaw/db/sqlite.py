@@ -18,7 +18,7 @@ def init_db(conn):
             ecli_id TEXT UNIQUE NOT NULL,
             title TEXT,
             celex_id TEXT UNIQUE,
-            zaaknummer TEXT UNIQUE,
+            zaaknummer TEXT,
             uitspraakdatum DATE
         );
         
@@ -49,11 +49,9 @@ def init_db(conn):
         CREATE TABLE IF NOT EXISTS law_alias (
             id INTEGER PRIMARY KEY,
             alias TEXT NOT NULL,
-            -- law_element_id INTEGER NOT NULL,
             bwb_id TEXT NOT NULL,
             source TEXT CHECK (source IN ('opschrift', 'bwbidlist')),
             UNIQUE (bwb_id, alias COLLATE NOCASE)
-            -- FOREIGN KEY (law_element_id) REFERENCES law_element(id) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_law_alias ON law_alias(alias COLLATE NOCASE);
     """)

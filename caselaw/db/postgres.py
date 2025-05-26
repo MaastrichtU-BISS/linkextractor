@@ -20,7 +20,7 @@ def init_db(conn):
         ecli_id TEXT UNIQUE NOT NULL,
         title TEXT,
         celex_id TEXT UNIQUE,
-        zaaknummer TEXT UNIQUE,
+        zaaknummer TEXT,
         uitspraakdatum DATE
     );
 
@@ -28,12 +28,13 @@ def init_db(conn):
         id SERIAL PRIMARY KEY,
         type TEXT CHECK (type IN ('wet', 'boek', 'deel', 'titeldeel', 'hoofdstuk', 'artikel', 'paragraaf', 'subparagraaf', 'afdeling')),
         bwb_id TEXT,
-        bwb_label_id INTEGER,
+        bwb_label_id BIGINT,
         lido_id TEXT UNIQUE,
         jc_id TEXT UNIQUE,
         number TEXT,
         title TEXT
     );
+    CREATE INDEX IF NOT EXISTS idx_bwb_id ON law_element(bwb_id, bwb_label_id);
 
     CREATE TABLE IF NOT EXISTS case_law (
         id SERIAL PRIMARY KEY,
@@ -50,12 +51,11 @@ def init_db(conn):
     CREATE TABLE IF NOT EXISTS law_alias (
         id SERIAL PRIMARY KEY,
         alias TEXT NOT NULL,
-        law_element_id INTEGER NOT NULL,
-        source TEXT CHECK (source IN ('opschrift', 'bwbidlist')),
-        FOREIGN KEY (law_element_id) REFERENCES law_element(id) ON DELETE CASCADE
+        bwb_id TEXT NOT NULL,
+        source TEXT CHECK (source IN ('opschrift', 'bwbidlist'))
     );
 
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_law_alias_uniq ON law_alias (LOWER(alias), law_element_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_law_alias_uniq ON law_alias (bwb_id, LOWER(alias));
     CREATE INDEX IF NOT EXISTS idx_law_alias_index ON law_alias(lower(alias));
     """)
     conn.commit()
