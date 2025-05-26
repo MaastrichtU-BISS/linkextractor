@@ -32,9 +32,16 @@ def get_law_element_by_lido_id(cursor, lido_id):
 def insert_case(cursor, case):
     assert all(key in case and case[key] is not None for key in ['ecli_id'])
 
-    cursor.execute("INSERT OR IGNORE INTO legal_case (ecli_id, title, zaaknummer, uitspraakdatum) VALUES (?, ?, ?, ?) ", 
+    cursor.execute("INSERT OR IGNORE INTO legal_case (ecli_id, title, zaaknummer, uitspraakdatum) VALUES (?, ?, ?, ?)", 
                    (case['ecli_id'], case.get('title'), case.get('zaaknummer'), case.get('uitspraakdatum'),))
-    return cursor.lastrowid
+    if cursor.rowcount > 0:
+        return cursor.lastrowid
+    else:
+        cursor.execute("SELECT id FROM legal_case WHERE ecli_id = ? LIMIT 1;", (case['ecli_id'],))
+        row = cursor.fetchone()
+        if not row:
+            print("NOT FOUND ecli:", case['ecli_id'])
+        return row[0] if row else None
 
 def insert_caselaw(cursor, caselaw):
     assert all(key in caselaw and caselaw[key] is not None for key in ['case_id', 'law_id', 'source', 'lido_id'])
@@ -81,7 +88,7 @@ def process_case_block(cursor, subject, props):
                         props.get('http://www.w3.org/2000/01/rdf-schema#label',
                             props.get('http://www.w3.org/2004/02/skos/core#prefLabel', [None])))[0]
 
-    case["zaaknummer"] = props.get("http://linkeddata.overheid.nl/terms/heeftZaaknummer", [None])[0]
+    case["zaaknummer"] = ",".join(props.get("http://linkeddata.overheid.nl/terms/heeftZaaknummer", [])) or None
     case["uitspraakdatum"] = props.get("http://linkeddata.overheid.nl/terms/heeftUitspraakdatum", [None])[0]
 
     # print(case)
