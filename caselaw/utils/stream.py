@@ -35,15 +35,18 @@ def stream_turtle_chunks(file_path, gzip=True):
                 yield chunk
                 buffer.clear()
 
-def parse_subject_block(triple_block):
+def parse_subject_block(subject, buffer):
     """
     triples: list of raw N-Triples lines (strings) for a single subject
     Returns: list of (predicate, object) pairs
     """
+    triple_block = "\n".join(buffer)
     parsed = list(parse(triple_block.encode(), format=RdfFormat.N_TRIPLES))
     # print(parsed)
     d = defaultdict(list)
     for t in parsed:
+        if t.subject.value != subject:
+            continue
         d[t.predicate.value].append(t.object.value)
     return dict(d)
 
@@ -76,8 +79,8 @@ def stream_triples(filename, gzip=False):
             # New subject boundary?
             if subject != current_subject:
                 if current_subject is not None and buffer:
-                    props = parse_subject_block("\n".join(buffer))
-                    yield subject, props
+                    props = parse_subject_block(current_subject, buffer)
+                    yield current_subject, props
 
                 current_subject = subject
                 buffer = []
@@ -85,5 +88,5 @@ def stream_triples(filename, gzip=False):
             buffer.append(line)
 
         if current_subject and buffer:
-            props = parse_subject_block("\n".join(buffer))
+            props = parse_subject_block(current_subject, buffer)
             yield subject, props
