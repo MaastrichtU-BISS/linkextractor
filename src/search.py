@@ -2,16 +2,16 @@ from src.patterns import fix_matches, match_patterns_regex
 from src.schemas import Reference
 from src.utils import *
 
-def query_in_text(query, db_name):
+def query_in_text(query):
     print(f"Query: \"{query}\"")
 
-    aliases = find_aliases_in_text(query, db_name)
+    aliases = find_aliases_in_text(query)
 
     print("Aliases:")
     for i, alias in enumerate(aliases):
         print(f"{i+1}) {alias}")
     
-    matches = match_patterns_regex(query, aliases, db_name=db_name)
+    matches = match_patterns_regex(query, aliases)
     
     end_results = []
 
@@ -49,17 +49,17 @@ def query_in_text(query, db_name):
         elif resource_title is None and book_number is not None:
             # search instances of '%boek {book_number}'
             # shouldnt happen, should always have book name!!!
-            results = find_matching_aliases(f"boek {book_number}", wildcard=('l'), db_name=db_name)
+            results = find_matching_aliases(f"boek {book_number}", wildcard=('l'))
 
         elif resource_title is not None and book_number is None:
             # search instances of '{resource_title}%' (like BW% will return BW 1, BW 2, ...)
-            results = find_matching_aliases(resource_title, wildcard=('r'), db_name=db_name)
+            results = find_matching_aliases(resource_title, wildcard=('r'))
 
         elif resource_title is not None and book_number is not None:
             # search instances of '{resource_title} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
             results = find_matching_aliases(f"{resource_title} boek {book_number}", wildcard=('r'))
             if len(results) == 0:
-                results = find_matching_aliases(resource_title, wildcard=('r'), db_name=db_name)
+                results = find_matching_aliases(resource_title, wildcard=('r'))
 
         print(f"{i+1}) Match at character positions {match['span'][0]} to {match['span'][1]} of pattern {match}:")
         if len(results) == 0:
@@ -71,7 +71,7 @@ def query_in_text(query, db_name):
     print()
     return end_results
 
-def query_exact(query: str, db_name="database.db") -> List[Reference]:
+def query_exact(query: str) -> List[Reference]:
     query = query.strip()
     results = []
 
@@ -81,9 +81,9 @@ def query_exact(query: str, db_name="database.db") -> List[Reference]:
     matches = fix_matches(matches)
 
     if len(matches) == 0:
-        aliases = find_matching_aliases(query, wildcard=('l', 'r'), db_name=db_name)
+        aliases = find_matching_aliases(query, wildcard=('l', 'r'))
         if len(aliases) == 0:
-            found = find_longest_alias_in_substring(query, db_name=db_name)
+            found = find_longest_alias_in_substring(query)
             aliases = [found] if found is not None else []
         
         for alias in aliases:
@@ -108,25 +108,25 @@ def query_exact(query: str, db_name="database.db") -> List[Reference]:
                 elif resource_title is None and book_number is not None:
                     # search instances of '%boek {book_number}'
                     # shouldnt happen, should always have book name!!!
-                    aliases = find_matching_aliases(f"boek {book_number}", wildcard=('l'), db_name=db_name)
+                    aliases = find_matching_aliases(f"boek {book_number}", wildcard=('l'))
 
             elif resource_title is not None:
                 if book_number is None:
                     # search instances of '{resource_title}%' (like BW% will return BW 1, BW 2, ...)
-                    aliases = find_matching_aliases(resource_title, wildcard=('r'), db_name=db_name)
+                    aliases = find_matching_aliases(resource_title, wildcard=('r'))
 
                 elif book_number is not None:
                     # search instances of '{resource_title} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
                     # TODO: I removed the wildcard=('r') because for BW book 1 it also returned 10. Do more testing.
-                    aliases = find_matching_aliases(f"{resource_title} boek {book_number}", db_name=db_name)
+                    aliases = find_matching_aliases(f"{resource_title} boek {book_number}")
                     if len(aliases) == 0:
                         # search without 'boek {nr}' suffix
-                        aliases = find_matching_aliases(resource_title, wildcard=('r'), db_name=db_name)
+                        aliases = find_matching_aliases(resource_title, wildcard=('r'))
                 
                 if len(aliases) == 0:
                     # if above both didnt lead to results, perform substring match
                     # this (temporarily) fixes 
-                    found = find_longest_alias_in_substring(resource_title, db_name=db_name)
+                    found = find_longest_alias_in_substring(resource_title)
                     aliases = [found] if found is not None else aliases
 
             if len(aliases) == 0:

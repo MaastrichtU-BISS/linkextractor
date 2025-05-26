@@ -178,7 +178,7 @@ class PTP(PT):
             # "Burgerlijk Wetboek Boek 7, Artikel 658"
             (
                 ALIASES +
-                "(?:{PTP.WS}{PTP.LITERAL['BOEK']}{PTP.WS}{ID['BOEK']})?" +
+                rf"(?:{PTP.WS}{PTP.LITERAL['BOEK']}{PTP.WS}{ID['BOEK']})?" +
                 PTP.COMMA_SPACE +
                 PTP.LITERAL['ARTIKEL'] +
                 PTP.WS +

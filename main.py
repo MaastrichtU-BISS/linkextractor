@@ -14,11 +14,10 @@ os.chdir(script_dir)
 # end set wrkdir
 
 if __name__ == "__main__":
-    db_name = "database.db"
-    prepare(db_name)
+    # prepare()
 
     # ## START GET PERMUTATIONS
-    # perms = query_perms("Art 5:1 BW", debug=False, db_name=db_name)
+    # perms = query_perms("Art 5:1 BW", debug=False)
     # for (i, perm, ) in enumerate(perms):
     #     print(i, perm)
     # exit()
@@ -71,6 +70,8 @@ if __name__ == "__main__":
         "Art. 5:1 lid 2 BW",
     ]
 
+    print("DB_BACKEND:", DB_BACKEND)
+
     for i, query in enumerate(queries):
         print(f"{i}) Query: \"{query}\"")
 
@@ -78,8 +79,8 @@ if __name__ == "__main__":
         iterations = 1
         for _ in range(iterations):
             time_s = time()
-            # results = query_in_text(query, db_name)
-            results = query_exact(query, db_name)
+            # results = query_in_text(query)
+            results = query_exact(query)
             times.append(time() - time_s)
         print("  Search performance:")
         print(f"  - Iterations:  {iterations}")
@@ -98,7 +99,7 @@ if __name__ == "__main__":
             print("  No results.")
         print()
         
-        # break
+        break
 
     # a = find_matching_aliases(f"Algemene wet bestuursrecht", wildcard=('r'))
     
