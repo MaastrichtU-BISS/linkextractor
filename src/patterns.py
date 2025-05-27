@@ -144,6 +144,8 @@ def fix_matches(matches: list):
     for i in range(len(matches)):
         match = matches[i]
 
+        print(i, match)
+
         """
         case 1: if title is BW and (captured) article contains semicolon, then
                 interpret the article as [book]:[article]
@@ -152,10 +154,9 @@ def fix_matches(matches: list):
         SELECT DISTINCT(alias) FROM aliases WHERE ref IN (SELECT ref FROM aliases WHERE alias = 'BW');
         """
 
-        if 'TITLE' in match['patterns'] and \
-            match['patterns']['TITLE'] in ['BW', 'Burgerlijk Wetboek'] and \
-            'ARTICLE' in match['patterns'] and \
-            ':' in match['patterns']['ARTICLE']:
+        if ':' in match['patterns'].get('ARTICLE', '') and \
+            (match['patterns'].get('TITLE', '').lower() in ['bw', 'burgerlijk wetboek']) or \
+            re.match(r"^bw boek \d+", match['patterns'].get('TITLE', ''), re.I):
 
             book, art = match['patterns']['ARTICLE'].split(':')
             matches[i]['patterns']['ARTICLE'] = art

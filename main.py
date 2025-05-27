@@ -70,6 +70,12 @@ if __name__ == "__main__":
         "Art. 5:1 lid 2 BW",
     ]
 
+    queries = [
+        "Artikel 7:658 van het BW boek 7"
+    ]
+
+    GET_CASES = False
+
     print("DB_BACKEND:", DB_BACKEND)
 
     for i, query in enumerate(queries):
@@ -92,14 +98,22 @@ if __name__ == "__main__":
 
         if len(results) > 0:
             print("  Results:")
-            for i, result in enumerate(results):
-                print(f"  - Result {i}: {result}")
+            for i, [parts, elements] in enumerate(results):
+                print(f"  - Parts {i}: found {len(elements)} law elements for parts {parts}")
+                for j, element in enumerate(elements):
+                    print(f"    - Element {i}.{j}: {element}")
+                    cases = get_cases_by_law_id(element['law_id'])
+                    if len(cases) > 0:
+                        print(f"      - Cases in element {i}.{j}: {len(cases)}")
+                        for k, case in enumerate(cases):
+                            print(f"        - {k}: {case}")
+
             print()
         else:
             print("  No results.")
         print()
         
-        break
+        # break
 
     # a = find_matching_aliases(f"Algemene wet bestuursrecht", wildcard=('r'))
     

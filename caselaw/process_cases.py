@@ -82,7 +82,7 @@ def process_case_block(cursor, subject, props):
         print("No ecli-id found in subject:", subject)
         return
     case["ecli_id"] = ecli_id
-
+    
     # case["title"] = props['title_1'] or props['title_2'] or props['title_3'] or []
     case["title"] = props.get('http://purl.org/dc/terms/title',
                         props.get('http://www.w3.org/2000/01/rdf-schema#label',

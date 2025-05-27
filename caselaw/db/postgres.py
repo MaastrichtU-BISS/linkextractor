@@ -35,6 +35,7 @@ def init_db(conn):
         title TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_bwb_id ON law_element(bwb_id, bwb_label_id);
+    CREATE INDEX IF NOT EXISTS idx_law_element_filter ON law_element (bwb_id, number, type);
 
     CREATE TABLE IF NOT EXISTS case_law (
         id SERIAL PRIMARY KEY,
@@ -47,6 +48,8 @@ def init_db(conn):
         FOREIGN KEY (case_id) REFERENCES legal_case(id),
         FOREIGN KEY (law_id) REFERENCES law_element(id)
     );
+    CREATE INDEX IF NOT EXISTS idx_caselaw_cl ON case_law (case_id, law_id);
+    CREATE INDEX IF NOT EXISTS idx_caselaw_lc ON case_law (law_id, case_id);
 
     CREATE TABLE IF NOT EXISTS law_alias (
         id SERIAL PRIMARY KEY,

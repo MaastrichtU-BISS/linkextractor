@@ -54,7 +54,7 @@ def find_longest_alias_in_substring(input_text):
             cursor.execute('''
                 SELECT alias, bwb_id
                 FROM law_alias
-                WHERE %s ILIKE alias || '%'
+                WHERE %s ILIKE alias || '%%'
                 ORDER BY LENGTH(alias) DESC
                 LIMIT 1;
             ''', (input_text,))
@@ -113,6 +113,154 @@ def find_matching_aliases(name, wildcard=None):
         
         results = [row for row in cursor.fetchall()]
     return results
+
+def get_amount_cases_by_law_filter(result):
+    if not 'resource' in result or not 'id' in result['resource'] or \
+        not 'fragment' in result or not 'article' in result['fragment']:
+        raise Exception("Invalid result")
+
+    with get_conn() as conn:
+        cursor = conn.cursor()
+
+        if DB_BACKEND == 'sqlite':
+            cursor.execute("""
+                SELECT COUNT(DISTINCT c.ecli_id)
+                FROM law_element l
+                JOIN case_law cl ON (cl.law_id = l.id)
+                JOIN legal_case c ON (cl.case_id = c.id)
+                WHERE 
+                    l.type = ? AND
+                    l.bwb_id = ? AND
+                    l.number = ?
+            """, ('artikel', result['resource']['id'], result['fragment']['article'],))
+        elif DB_BACKEND == 'postgres':
+            cursor.execute("""
+                SELECT COUNT(DISTINCT c.ecli_id)
+                FROM law_element l
+                JOIN case_law cl ON (cl.law_id = l.id)
+                JOIN legal_case c ON (cl.case_id = c.id)
+                WHERE 
+                    l.type = %s AND
+                    l.bwb_id = %s AND
+                    l.number = %s
+            """, ('artikel', result['resource']['id'], result['fragment']['article'],))
+        
+        amount = cursor.fetchone()
+        if amount:
+            return amount[0]
+        raise Exception("Failed getting amount of cases")
+
+def get_cases_by_law_filter(result):
+    if not 'resource' in result or not 'id' in result['resource'] or \
+        not 'fragment' in result or not 'article' in result['fragment']:
+        raise Exception("Invalid result")
+
+    with get_conn() as conn:
+        cursor = conn.cursor()
+
+        if DB_BACKEND == 'sqlite':
+            cursor.execute("""
+                -- SELECT l.bwb_id, l.type, l.number, c.ecli_id, c.title
+                SELECT c.ecli_id
+                FROM law_element l
+                JOIN case_law cl ON (cl.law_id = l.id)
+                JOIN legal_case c ON (cl.case_id = c.id)
+                WHERE 
+                    l.type = ? AND
+                    l.bwb_id = ? AND
+                    l.number = ?
+                GROUP BY c.id
+                LIMIT 5000
+            """, ('artikel', result['resource']['id'], result['fragment']['article'],))
+        elif DB_BACKEND == 'postgres':
+            cursor.execute("""
+                SELECT c.ecli_id
+                FROM law_element l
+                JOIN case_law cl ON (cl.law_id = l.id)
+                JOIN legal_case c ON (cl.case_id = c.id)
+                WHERE 
+                    l.type = %s AND
+                    l.bwb_id = %s AND
+                    l.number = %s
+                GROUP BY c.id
+                LIMIT 5000
+            """, ('artikel', result['resource']['id'], result['fragment']['article'],))
+        
+        return [row[0] for row in cursor.fetchall()]
+
+def find_laws_from_parts(parts):
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        
+        where_clause = " AND ".join([f"l.{parts} = ?" for parts in parts])
+        
+        if DB_BACKEND == 'sqlite':
+            cursor.execute(f"""
+                SELECT l.id, l.type, l.number, l.bwb_id, l.bwb_label_id, l.title, COUNT(DISTINCT c.ecli_id) as related_cases
+                FROM law_element l
+                JOIN case_law cl ON (cl.law_id = l.id)
+                JOIN legal_case c ON (cl.case_id = c.id)
+                WHERE
+                    1=1 AND
+                    {where_clause}
+                GROUP BY l.id
+                LIMIT 5000
+            """, tuple(parts.values()))
+        elif DB_BACKEND == 'postgres':
+            cursor.execute(f"""
+                SELECT l.id, l.type, l.number, l.bwb_id, l.bwb_label_id, l.title, COUNT(DISTINCT c.ecli_id) as related_cases
+                FROM law_element l
+                JOIN case_law cl ON (cl.law_id = l.id)
+                JOIN legal_case c ON (cl.case_id = c.id)
+                WHERE 
+                    1=1 AND
+                    {where_clause.replace('?', '%s')}
+                GROUP BY l.id
+                LIMIT 5000
+            """, tuple(parts.values()))
+
+        return [
+            {
+                'law_id': row[0],
+                'type': row[1],
+                'number': row[2],
+                'bwb_id': row[3],
+                'bwb_label_id': row[4],
+                'title': row[5],
+                'amount_related_cases': row[6],
+            } for row in cursor.fetchall()
+        ]
+
+def get_cases_by_law_id(law_id):
+    """
+    Returns ECLI-id's related to the internal law_id
+    """
+
+    with get_conn() as conn:
+        cursor = conn.cursor()
+
+        if DB_BACKEND == 'sqlite':
+            cursor.execute("""
+                SELECT c.ecli_id
+                FROM case_law cl
+                JOIN legal_case c ON (cl.case_id = c.id)
+                WHERE 
+                    cl.law_id = ?
+                GROUP BY c.id
+                LIMIT 5000
+            """, (law_id,))
+        elif DB_BACKEND == 'postgres':
+            cursor.execute("""
+                SELECT c.ecli_id
+                FROM case_law cl
+                JOIN legal_case c ON (cl.case_id = c.id)
+                WHERE 
+                    cl.law_id = %s
+                GROUP BY c.id
+                LIMIT 5000
+            """, (law_id,))
+        
+        return [row[0] for row in cursor.fetchall()]
 
 def get_name_of_id(id):
     return None

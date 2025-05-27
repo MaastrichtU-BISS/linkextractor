@@ -80,6 +80,7 @@ def query_exact(query: str) -> List[Reference]:
     # some manual fixes, such as matching 1:2 as book:art instead of article
     matches = fix_matches(matches)
 
+    # if no pattern matches, try find longest substring
     if len(matches) == 0:
         aliases = find_matching_aliases(query, wildcard=('l', 'r'))
         if len(aliases) == 0:
@@ -134,16 +135,37 @@ def query_exact(query: str) -> List[Reference]:
                 pass
             else:
                 for alias in aliases:
-                    result = {
-                        'resource': {
-                            'name': alias[0],
-                            'id': alias[1]
-                        },
-                        'fragment': {}
+
+                    # // get law element by information, store to resource the detials
+
+                    parts = {
+                        'bwb_id': alias[1]
                     }
-                    for key in ['ARTICLE', 'BOOK', 'SUBPARAGRAPH']:
-                        if key in match['patterns']:
-                            result['fragment'][key.lower()] = match['patterns'][key]
-                    results.append(result)
+
+                    if 'ARTICLE' in match['patterns']:
+                        parts['type'] = 'artikel'
+                        parts['number'] = match['patterns']['ARTICLE']
+                    else:
+                        continue # temporarily
+                    
+                    result = find_laws_from_parts(parts)
+
+                    # result = {
+                    #     'resource': {
+                    #         'name': alias[0],
+                    #         'bwbid': alias[1]
+                    #     },
+                    #     'fragment': {}
+                    # }
+
+                    # for key in ['ARTICLE', 'BOOK', 'SUBPARAGRAPH']:
+                    #     if key in match['patterns']:
+                    #         result['fragment'][key.lower()] = match['patterns'][key]
+                    
+
+                    # amount_related_cases = get_amount_cases_by_law_filter(result)
+                    # result['amount_related_cases'] = amount_related_cases
+
+                    results.append([parts, result])
 
     return results
