@@ -4,7 +4,7 @@ from pyoxigraph import RdfFormat, parse
 from collections import defaultdict
 import sys
 
-from caselaw.process_cases import get_law_element_by_lido_id
+from pipeline.process_cases import get_law_element_by_lido_id
 
 def insert_case(cursor, case):
     assert all(key in case and case[key] is not None for key in ['ecli_id', 'title'])

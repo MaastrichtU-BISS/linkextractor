@@ -1,7 +1,7 @@
 import sys
-from caselaw.process_laws import strip_lido_law_id
-from caselaw.utils.benchmarking import TimerCollector
-from caselaw.utils.stream import stream_triples
+from pipeline.process_laws import strip_lido_law_id
+from pipeline.utils.benchmarking import TimerCollector
+from pipeline.utils.stream import stream_triples
 
 def get_law_element_by_lido_id(cursor, lido_id):
     stripped_id = strip_lido_law_id(lido_id) # -> BWBR0001826/1711894/1821-08-01/1821-08-01

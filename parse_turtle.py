@@ -1,8 +1,8 @@
 import os
 # from caselaw.db.postgres import get_conn as get_postgres_conn, init_db as init_postgres_db
-from caselaw.db.sqlite import get_conn, init_db
-from caselaw.process_cases import process_ttl_cases
-from caselaw.process_laws import process_ttl_laws
+from pipeline.db.sqlite import get_conn, init_db
+from pipeline.process_cases import process_ttl_cases
+from pipeline.process_laws import process_ttl_laws
 import sys
 
 if __name__=="__main__":

@@ -1,9 +1,9 @@
 
 import sys
-from caselaw.constants import REGELING_ONDERDELEN, TERM_URI_TYPE
-from caselaw.db.sqlite import cursor_is_sqlite
-from caselaw.utils.print import printerr
-from caselaw.utils.stream import stream_triples
+from pipeline.constants import REGELING_ONDERDELEN, TERM_URI_TYPE
+from pipeline.db.sqlite import cursor_is_sqlite
+from pipeline.utils.print import printerr
+from pipeline.utils.stream import stream_triples
 
 def insert_law_element(cursor, law_element):
     assert all(key in law_element and law_element[key] is not None for key in ['type', 'bwb_id', 'lido_id', 'title'])
