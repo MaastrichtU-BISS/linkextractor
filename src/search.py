@@ -149,23 +149,6 @@ def query_exact(query: str) -> List[Reference]:
                         continue # temporarily
                     
                     result = find_laws_from_parts(parts)
-
-                    # result = {
-                    #     'resource': {
-                    #         'name': alias[0],
-                    #         'bwbid': alias[1]
-                    #     },
-                    #     'fragment': {}
-                    # }
-
-                    # for key in ['ARTICLE', 'BOOK', 'SUBPARAGRAPH']:
-                    #     if key in match['patterns']:
-                    #         result['fragment'][key.lower()] = match['patterns'][key]
-                    
-
-                    # amount_related_cases = get_amount_cases_by_law_filter(result)
-                    # result['amount_related_cases'] = amount_related_cases
-
                     results.append([parts, result])
 
     return results

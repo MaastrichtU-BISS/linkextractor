@@ -98,10 +98,9 @@ if __name__ == "__main__":
 
         if len(results) > 0:
             print("  Results:")
-            for i, [parts, elements] in enumerate(results):
-                print(f"  - Parts {i}: found {len(elements)} law elements for parts {parts}")
+            for i, elements in enumerate(results):
+                print(f"  - Element {i}:")
                 for j, element in enumerate(elements):
-                    print(f"    - Element {i}.{j}: {element}")
                     cases = get_cases_by_law_id(element['law_id'])
                     if len(cases) > 0:
                         print(f"      - Cases in element {i}.{j}: {len(cases)}")
