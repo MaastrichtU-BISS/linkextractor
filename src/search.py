@@ -3,6 +3,9 @@ from src.schemas import Reference
 from src.utils import *
 
 def query_in_text(query):
+    """
+    Find matches in a larger text. This function is in progress and not finished yet.
+    """
     print(f"Query: \"{query}\"")
 
     aliases = find_aliases_in_text(query)
@@ -135,9 +138,6 @@ def query_exact(query: str) -> List[Reference]:
                 pass
             else:
                 for alias in aliases:
-
-                    # // get law element by information, store to resource the detials
-
                     parts = {
                         'bwb_id': alias[1]
                     }
@@ -151,8 +151,5 @@ def query_exact(query: str) -> List[Reference]:
                     elements = find_laws_from_parts(parts)
                     for element in elements:
                         results.append(element)
-
-                    # results.append([parts, result])
-
 
     return results
