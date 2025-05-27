@@ -70,7 +70,10 @@ if __name__ == "__main__":
         "Art. 5:1 lid 2 BW",
     ]
 
-    GET_CASES = False
+    FIRST_ONLY = True
+    GET_CASES = True
+    # FIRST_ONLY = False
+    # GET_CASES = False
 
     print("DB_BACKEND:", DB_BACKEND)
 
@@ -107,7 +110,8 @@ if __name__ == "__main__":
             print("  No results.")
         print()
         
-        # break
+        if FIRST_ONLY:
+            break
 
     # a = find_matching_aliases(f"Algemene wet bestuursrecht", wildcard=('r'))
     

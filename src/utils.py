@@ -243,7 +243,7 @@ def get_cases_by_bwb_and_label_id(bwb_id, bwb_label_id):
 
         if DB_BACKEND == 'sqlite':
             cursor.execute("""
-                SELECT c.ecli_id
+                SELECT c.ecli_id, group_concat(distinct cl.source)
                 FROM law_element l
                 JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
@@ -255,7 +255,7 @@ def get_cases_by_bwb_and_label_id(bwb_id, bwb_label_id):
             """, (bwb_id, bwb_label_id,))
         elif DB_BACKEND == 'postgres':
             cursor.execute("""
-                SELECT c.ecli_id
+                SELECT c.ecli_id, STRING_AGG(distinct cl.source, ',')
                 FROM law_element l
                 JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
@@ -266,7 +266,7 @@ def get_cases_by_bwb_and_label_id(bwb_id, bwb_label_id):
                 LIMIT 5000
             """, (bwb_id, bwb_label_id,))
         
-        return [row[0] for row in cursor.fetchall()]
+        return [[row[0], row[1].split(",")] for row in cursor.fetchall()]
 
 def get_name_of_id(id):
     return None
