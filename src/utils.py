@@ -194,7 +194,19 @@ def find_laws_from_parts(parts):
     with get_conn() as conn:
         cursor = conn.cursor()
         
-        where_clause = " AND ".join([f"l.{parts} = ?" for parts in parts])
+        where_clause = []
+        where_values = []
+        if 'bwb_id' in parts:
+            where_clause.append('l.bwb_id = ?')
+            where_values.append(parts['bwb_id'])
+        if 'type' in parts:
+            where_clause.append('l.type = ?')
+            where_values.append(parts['type'])
+        if 'number' in parts:
+            where_clause.append('lower(l.number) = lower(?)')
+            where_values.append(parts['number'])
+        
+        where_clause = " AND ".join(where_clause)
         
         if DB_BACKEND == 'sqlite':
             cursor.execute(f"""
@@ -207,7 +219,7 @@ def find_laws_from_parts(parts):
                     {where_clause}
                 GROUP BY l.bwb_label_id
                 LIMIT 5000
-            """, tuple(parts.values()))
+            """, where_values)
         elif DB_BACKEND == 'postgres':
             cursor.execute(f"""
                 SELECT l.type, l.number, l.bwb_id, l.bwb_label_id, l.title, COUNT(DISTINCT c.ecli_id) as related_cases
@@ -219,7 +231,7 @@ def find_laws_from_parts(parts):
                     {where_clause.replace('?', '%s')}
                 GROUP BY l.bwb_label_id, l.type, l.number, l.bwb_id, l.bwb_label_id, l.title
                 LIMIT 5000
-            """, tuple(parts.values()))
+            """, where_values)
 
         return [
             {
