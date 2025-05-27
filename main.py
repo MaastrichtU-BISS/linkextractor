@@ -70,10 +70,6 @@ if __name__ == "__main__":
         "Art. 5:1 lid 2 BW",
     ]
 
-    queries = [
-        "Artikel 7:658 van het BW boek 7"
-    ]
-
     GET_CASES = False
 
     print("DB_BACKEND:", DB_BACKEND)
@@ -98,14 +94,13 @@ if __name__ == "__main__":
 
         if len(results) > 0:
             print("  Results:")
-            for i, elements in enumerate(results):
-                print(f"  - Element {i}:")
-                for j, element in enumerate(elements):
-                    cases = get_cases_by_law_id(element['law_id'])
-                    if len(cases) > 0:
-                        print(f"      - Cases in element {i}.{j}: {len(cases)}")
-                        for k, case in enumerate(cases):
-                            print(f"        - {k}: {case}")
+            for i, element in enumerate(results):
+                print(f"  - Element {i}: {element}")
+                cases = get_cases_by_bwb_and_label_id(element['bwb_id'], element['bwb_label_id'])
+                if GET_CASES and len(cases) > 0:
+                    print(f"      - Cases in element {i}: {len(cases)}")
+                    for k, case in enumerate(cases):
+                        print(f"        - {k}: {case}")
 
             print()
         else:

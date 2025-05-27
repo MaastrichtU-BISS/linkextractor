@@ -196,45 +196,47 @@ def find_laws_from_parts(parts):
         
         if DB_BACKEND == 'sqlite':
             cursor.execute(f"""
-                SELECT l.id, l.type, l.number, l.bwb_id, l.bwb_label_id, l.title, COUNT(DISTINCT c.ecli_id) as related_cases
+                SELECT l.type, l.number, l.bwb_id, l.bwb_label_id, l.title, COUNT(DISTINCT c.ecli_id) as related_cases
                 FROM law_element l
                 JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
                 WHERE
                     1=1 AND
                     {where_clause}
-                GROUP BY l.id
+                GROUP BY l.bwb_label_id
                 LIMIT 5000
             """, tuple(parts.values()))
         elif DB_BACKEND == 'postgres':
             cursor.execute(f"""
-                SELECT l.id, l.type, l.number, l.bwb_id, l.bwb_label_id, l.title, COUNT(DISTINCT c.ecli_id) as related_cases
+                SELECT l.type, l.number, l.bwb_id, l.bwb_label_id, l.title, COUNT(DISTINCT c.ecli_id) as related_cases
                 FROM law_element l
                 JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
                 WHERE 
                     1=1 AND
                     {where_clause.replace('?', '%s')}
-                GROUP BY l.id
+                GROUP BY l.bwb_label_id, l.type, l.number, l.bwb_id, l.bwb_label_id, l.title
                 LIMIT 5000
             """, tuple(parts.values()))
 
         return [
             {
-                'law_id': row[0],
-                'type': row[1],
-                'number': row[2],
-                'bwb_id': row[3],
-                'bwb_label_id': row[4],
-                'title': row[5],
-                'amount_related_cases': row[6],
+                'type': row[0],
+                'number': row[1],
+                'bwb_id': row[2],
+                'bwb_label_id': row[3],
+                'title': row[4],
+                'amount_related_cases': row[5],
             } for row in cursor.fetchall()
         ]
 
-def get_cases_by_law_id(law_id):
+def get_cases_by_bwb_and_label_id(bwb_id, bwb_label_id):
     """
-    Returns ECLI-id's related to the internal law_id
+    Returns ECLI-id's related to the bwb and label_id
     """
+
+    assert bwb_id is not None
+    assert bwb_label_id is not None
 
     with get_conn() as conn:
         cursor = conn.cursor()
@@ -242,23 +244,27 @@ def get_cases_by_law_id(law_id):
         if DB_BACKEND == 'sqlite':
             cursor.execute("""
                 SELECT c.ecli_id
-                FROM case_law cl
+                FROM law_element l
+                JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
                 WHERE 
-                    cl.law_id = ?
+                    l.bwb_id = ? AND
+                    l.bwb_label_id = ?
                 GROUP BY c.id
                 LIMIT 5000
-            """, (law_id,))
+            """, (bwb_id, bwb_label_id,))
         elif DB_BACKEND == 'postgres':
             cursor.execute("""
                 SELECT c.ecli_id
-                FROM case_law cl
+                FROM law_element l
+                JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
                 WHERE 
-                    cl.law_id = %s
+                    l.bwb_id = %s AND
+                    l.bwb_label_id = %s
                 GROUP BY c.id
                 LIMIT 5000
-            """, (law_id,))
+            """, (bwb_id, bwb_label_id,))
         
         return [row[0] for row in cursor.fetchall()]
 

@@ -148,7 +148,11 @@ def query_exact(query: str) -> List[Reference]:
                     else:
                         continue # temporarily
                     
-                    result = find_laws_from_parts(parts)
-                    results.append([parts, result])
+                    elements = find_laws_from_parts(parts)
+                    for element in elements:
+                        results.append(element)
+
+                    # results.append([parts, result])
+
 
     return results

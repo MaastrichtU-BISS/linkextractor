@@ -144,8 +144,6 @@ def fix_matches(matches: list):
     for i in range(len(matches)):
         match = matches[i]
 
-        print(i, match)
-
         """
         case 1: if title is BW and (captured) article contains semicolon, then
                 interpret the article as [book]:[article]
