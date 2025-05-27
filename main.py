@@ -1,4 +1,3 @@
-from src.prepare import prepare
 from src.search import query_exact, query_in_text
 from src.utils import *
 

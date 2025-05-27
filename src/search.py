@@ -1,5 +1,4 @@
 from src.patterns import fix_matches, match_patterns_regex
-from src.schemas import Reference
 from src.utils import *
 
 def query_in_text(query):
@@ -74,7 +73,7 @@ def query_in_text(query):
     print()
     return end_results
 
-def query_exact(query: str) -> List[Reference]:
+def query_exact(query: str):
     query = query.strip()
     results = []
 
