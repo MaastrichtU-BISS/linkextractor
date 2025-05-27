@@ -115,6 +115,7 @@ def find_matching_aliases(name, wildcard=None):
     return results
 
 def get_amount_cases_by_law_filter(result):
+    return None
     if not 'resource' in result or not 'id' in result['resource'] or \
         not 'fragment' in result or not 'article' in result['fragment']:
         raise Exception("Invalid result")
@@ -151,6 +152,7 @@ def get_amount_cases_by_law_filter(result):
         raise Exception("Failed getting amount of cases")
 
 def get_cases_by_law_filter(result):
+    return None
     if not 'resource' in result or not 'id' in result['resource'] or \
         not 'fragment' in result or not 'article' in result['fragment']:
         raise Exception("Invalid result")
@@ -267,50 +269,3 @@ def get_cases_by_bwb_and_label_id(bwb_id, bwb_label_id):
             """, (bwb_id, bwb_label_id,))
         
         return [[row[0], row[1].split(",")] for row in cursor.fetchall()]
-
-def get_name_of_id(id):
-    return None
-    # for now, it will simply return the longest alias for the given (bwb)id
-    with get_conn() as conn:
-        cursor=conn.cursor()
-
-        cursor.execute('''
-            SELECT alias, ref, length_rank, idname
-            FROM (
-                SELECT
-                    a.alias,
-                    a.ref,
-                    r.name as idname,
-                    ROW_NUMBER() OVER (PARTITION BY a.ref ORDER BY LENGTH(a.alias) DESC) AS length_rank
-                FROM aliases a
-                JOIN refs r ON (a.ref = r.id)
-                WHERE r.name = ?
-            )
-            WHERE length_rank=1
-        ''', (id,))
-
-        result = cursor.fetchone()
-
-        return (result[0], result[3],) # <- ('longest alias string', 'BWB0001234')
-
-def get_aliases_of_ids(id):
-    return None
-    # return aliases for the given bwbid
-    with get_conn() as conn:
-        cursor=conn.cursor()
-
-        # cursor.execute(f'''
-        #     SELECT DISTINCT alias FROM aliases WHERE ref IN (
-        #         SELECT id FROM refs WHERE name IN ({','.join(['?']*len(ids))})
-        #     )
-        # ''', [id for id in ids])
-
-        cursor.execute(f'''
-            SELECT DISTINCT alias FROM aliases WHERE ref IN (
-                SELECT id FROM refs WHERE name = ?
-            )
-        ''', (id,))
-
-        results = [result[0] for result in cursor.fetchall()]
-
-        return results
