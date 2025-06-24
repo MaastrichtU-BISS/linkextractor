@@ -98,11 +98,12 @@ if __name__ == "__main__":
             print("  Results:")
             for i, element in enumerate(results):
                 print(f"  - Element {i}: {element}")
-                cases = get_cases_by_bwb_and_label_id(element['bwb_id'], element['bwb_label_id'])
-                if GET_CASES and len(cases) > 0:
-                    print(f"      - Cases in element {i}: {len(cases)}")
-                    for k, case in enumerate(cases):
-                        print(f"        - {k}: {case}")
+                if GET_CASES:
+                    cases = get_cases_by_bwb_and_label_id(element['bwb_id'], element['bwb_label_id'])
+                    if len(cases) > 0:
+                        print(f"      - Cases in element {i}: {len(cases)}")
+                        for k, case in enumerate(cases):
+                            print(f"        - {k}: {case}")
 
             print()
         else:
