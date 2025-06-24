@@ -23,6 +23,7 @@ def init_db(conn):
         zaaknummer TEXT,
         uitspraakdatum DATE
     );
+    CREATE INDEX idx_legal_case_id_ecli ON legal_case (id, ecli_id);
 
     CREATE TABLE IF NOT EXISTS law_element (
         id SERIAL PRIMARY KEY,
@@ -58,7 +59,7 @@ def init_db(conn):
         source TEXT CHECK (source IN ('opschrift', 'bwbidlist'))
     );
 
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_law_alias_uniq ON law_alias (bwb_id, LOWER(alias));
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_law_alias_uniq ON law_alias(bwb_id, LOWER(alias));
     CREATE INDEX IF NOT EXISTS idx_law_alias_index ON law_alias(lower(alias));
     """)
     conn.commit()
