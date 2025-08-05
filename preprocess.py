@@ -1,18 +1,20 @@
 import os
+import re
 # import lxml.etree as ET
 from saxonche import PySaxonProcessor
 import requests
 import zipfile
 import typing
+import json
 
 FILE_BWB_STYLESHEET = "./data/static/xsl/bwb-regeling-aanduiding.xslt"
 FILE_BWB_IDS_TRANSFORMED = "./data/dynamic/bwb/BWBIdList.server.xml"
 FILE_BWB_IDS_XML = "./data/dynamic/bwb/BWBIdList.xml"
+FILE_BWB_IDS_JSON = "./data/dynamic/bwb/BWBIdList.json"
 FILE_BWB_IDS_ZIP = f"{FILE_BWB_IDS_XML}.zip"
 URL_BWB_IDS_ZIP = "https://zoekservice.overheid.nl/BWBIdService/BWBIdList.xml.zip"
 
 def prepare_bwb_trie(when_exists: typing.Literal["error", "overwrite", "continue"] = "error"):
-  print("- Preparing BWB trie")
 
   def download_bwb_id_xml():
     print("- - Downloading BWB id xml")
@@ -75,11 +77,76 @@ def prepare_bwb_trie(when_exists: typing.Literal["error", "overwrite", "continue
     if not os.path.exists(FILE_BWB_IDS_TRANSFORMED):
       raise Exception(f"Failed creating parsed file {FILE_BWB_IDS_TRANSFORMED}")
   
-  download_bwb_id_xml()
-  extract_bwb_id_xml()
-  parse_bwb_xslt()
+
+  def parse_bwb_manual():
+    print("- Parsing tree")
+
+    """
+    TestCase:
+    <item id="BWBR0002534">
+      <title>Wet van 21 juli 1966, houdende vervanging van de Motorrijtuigenbelastingwet (Stb. 1926, 464) door een nieuwe wettelijke regeling</title>
+      <title>Wet op de motorrijtuigenbelasting 1966</title>
+      <title>MRB</title>
+      <title>Wet MRB 1966</title>
+    </item>
+    """
+
+    from lxml import etree
+
+    output = []
+
+    NS = {"NS1": "http://schemas.overheid.nl/bwbidservice"}
+
+    root = etree.parse(FILE_BWB_IDS_XML)
+    regelingLijst = root.find('NS1:RegelingInfoLijst', namespaces=NS)
+    for regeling in regelingLijst.iterfind('NS1:RegelingInfo', namespaces=NS):
+      bwbId = regeling.find('NS1:BWBId', namespaces=NS).text
+      titelOfficieel = regeling.find('NS1:OfficieleTitel', namespaces=NS).text
+      citeerTitels = [
+        titel.find('NS1:titel', namespaces=NS).text 
+        for titel 
+        in regeling
+          .find('NS1:CiteertitelLijst', namespaces=NS)
+          .iterfind('NS1:Citeertitel', namespaces=NS)
+      ]
+      afkortingen = [
+        afkorting.text 
+        for afkorting
+        in regeling
+          .find('NS1:AfkortingLijst', namespaces=NS)
+          .iterfind('NS1:Afkorting', namespaces=NS)
+      ]
+      titelsNietOfficieel = [
+        titel.text 
+        for titel 
+        in regeling
+          .find('NS1:NietOfficieleTitelLijst', namespaces=NS)
+          .iterfind('NS1:NietOfficieleTitel', namespaces=NS)
+      ]
+
+      titels = [titelOfficieel] + citeerTitels + afkortingen + titelsNietOfficieel
+
+      # limit length and remove some unwanted chars
+      titels = [
+        re.sub(r'\s+', ' ', 
+          re.sub(r'^(\s|[.,;:])+', '', titel)
+        )
+        for titel in titels
+        if titel and len(titel) > 0 and len(titel) < 2500
+      ]
+
+      output.append([bwbId, titels])
+    
+    with open(FILE_BWB_IDS_JSON, "w", encoding="utf-8") as f:
+      json.dump(output, f, ensure_ascii=False, indent=2)
+    
+
+  # download_bwb_id_xml()
+  # extract_bwb_id_xml()
+  parse_bwb_manual()
+  # parse_bwb_xslt()
 
 if __name__ == "__main__":
   print("Starting preprocessing")
-  prepare_bwb_trie("overwrite")
-  # prepare_bwb_trie("continue")
+  # prepare_bwb_trie("overwrite")
+  prepare_bwb_trie("continue")
