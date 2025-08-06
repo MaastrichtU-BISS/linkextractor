@@ -1,8 +1,6 @@
 from typing import Dict, List, Literal, Union
 import re
 
-# NEW PATTERN
-
 def capture(name: str, pattern: re.Pattern):
     return rf"(?P<{name}>{pattern})"
 
@@ -97,7 +95,7 @@ def sub_pattern_placeholders(pattern, mapping):
     in mapping until no further substitutions are made.
     """
     current = pattern
-    
+
     max_iterations = 10
     i = 0
     while i < max_iterations:
@@ -106,7 +104,7 @@ def sub_pattern_placeholders(pattern, mapping):
         if new_s == current:
             break
         current = new_s
-    
+
     return current
 
 def get_patterns(mapping, exact=False):
@@ -114,14 +112,14 @@ def get_patterns(mapping, exact=False):
     Generate a list of compiled regular expression patterns from a base set,
     with placeholders replaced using the provided mapping.
 
-    The base patterns (from PT_REFS and optionally PT_REFS_EXACT) may contain 
+    The base patterns (from PT_REFS and optionally PT_REFS_EXACT) may contain
     placeholders in the form {placeholder_name}, which are recursively substituted.
 
-    If `exact` is True, each pattern is wrapped to match the entire line (with optional 
+    If `exact` is True, each pattern is wrapped to match the entire line (with optional
     leading/trailing whitespace).
     """
     compiled_patterns = []
-    
+
     if exact:
         patterns = PT_REFS + PT_REFS_EXACT
     else:
@@ -137,7 +135,7 @@ def get_patterns(mapping, exact=False):
 
 def fix_matches(matches: list):
     """
-    This function describes and executes business logic exceptions to defined 
+    This function describes and executes business logic exceptions to defined
     rules.
     """
 
@@ -159,7 +157,7 @@ def fix_matches(matches: list):
             book, art = match['patterns']['ARTICLE'].split(':')
             matches[i]['patterns']['ARTICLE'] = art
             matches[i]['patterns']['BOOK'] = book
-    
+
     return matches
 
 def match_patterns_regex(text: str, matches: Union[List[tuple], None] = None):
@@ -177,7 +175,7 @@ def match_patterns_regex(text: str, matches: Union[List[tuple], None] = None):
         patterns = get_patterns({**PT_ATOMS, "TITLE": pt_titles}, False)
     else:
         patterns = get_patterns(PT_ATOMS, True)
-    
+
     results = []
 
     for pattern in patterns:
@@ -189,5 +187,5 @@ def match_patterns_regex(text: str, matches: Union[List[tuple], None] = None):
                 "span": span,
                 "patterns": match.groupdict()
             })
-    
+
     return results
