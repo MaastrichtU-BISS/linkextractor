@@ -1,5 +1,9 @@
+from src.db import set_db_url
 from src.search import query_exact, query_in_text
-from src.utils import *
+from src.utils import get_cases_by_bwb_and_label_id
+import sys
+
+import argparse
 
 # start set wrkdir
 import os
@@ -12,15 +16,76 @@ script_dir = pathlib.Path(__file__).parent.resolve()
 os.chdir(script_dir)
 # end set wrkdir
 
-if __name__ == "__main__":
-    # prepare()
+def main():
+    # Global parser with args for every parser
+    parent_parser = argparse.ArgumentParser(add_help=False)
+    parent_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Verbose output"
+    )
 
-    # ## START GET PERMUTATIONS
-    # perms = query_perms("Art 5:1 BW", debug=False)
-    # for (i, perm, ) in enumerate(perms):
-    #     print(i, perm)
-    # exit()
-    # ## END GET PERM.
+    parent_parser.add_argument(
+        "-d", "--database",
+        action="store",
+        help="Specify database. Default",
+        default=None
+    )
+
+    parser = argparse.ArgumentParser(
+        description="LinkExtractor-Lite CommandLine Interface",
+        parents=[parent_parser]
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    eval = subparsers.add_parser(
+        "eval",
+        help="evaluate string",
+        parents=[parent_parser]
+    )
+    eval.add_argument("-e", "--exact", help="match exact", action=argparse.BooleanOptionalAction)
+    eval.add_argument("string", help="string to parse from", type=str)
+
+    test = subparsers.add_parser(
+        "test",
+        help="test predefined queries",
+        parents=[parent_parser]
+    )
+
+    analyze = subparsers.add_parser(
+        "analyze",
+        help="run pipeline for analysis of texts from db",
+        parents=[parent_parser]
+    )
+
+    args = parser.parse_args()
+
+    if args.database is not None:
+        set_db_url(args.database)
+
+    if len(sys.argv)==1:
+        parser.print_help()
+        sys.exit(0)
+
+    if args.command == "eval":
+        results = []
+
+        if args.exact:
+            results = query_exact(args.string, args.verbose)
+        else:
+            results = query_in_text(args.string, args.verbose)
+
+        for result in results:
+            print(result)
+
+    elif args.command == "test":
+        test_queries()
+
+    elif args.command == "analyze":
+        print("Brrrr")
+
+
+def test_queries():
 
     queries = [
         "Art. 7:658 BW",
@@ -65,7 +130,7 @@ if __name__ == "__main__":
 
         "art. 2:346 lid 1, aanhef en onder e BW",
         "Burgerlijk Wetboek Boek 7, Artikel 658",
-        
+
         "Art. 5:1 lid 2 BW",
     ]
 
@@ -109,12 +174,26 @@ if __name__ == "__main__":
         else:
             print("  No results.")
         print()
-        
+
         if FIRST_ONLY:
             break
 
+
+
+if __name__ == "__main__":
+    main()
+    quit()
+    # prepare()
+
+    # ## START GET PERMUTATIONS
+    # perms = query_perms("Art 5:1 BW", debug=False)
+    # for (i, perm, ) in enumerate(perms):
+    #     print(i, perm)
+    # exit()
+    # ## END GET PERM.
+
     # a = find_matching_aliases(f"Algemene wet bestuursrecht", wildcard=('r'))
-    
+
 """
 TODO improvements:
  - ensure that single matches are not part of words (such as "Burgerlijk Wetboek" matching "LI" -> Liftenbesluit, etc.)
