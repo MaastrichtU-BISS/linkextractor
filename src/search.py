@@ -1,28 +1,35 @@
 from src.patterns import fix_matches, match_patterns_regex
 from src.utils import *
 
-def query_in_text(query):
+def query_in_text(query, debug=False):
     """
     Find matches in a larger text. This function is in progress and not finished yet.
     """
-    print(f"Query: \"{query}\"")
+    if debug:
+        print(f"Query: \"{query}\"")
 
     aliases = find_aliases_in_text(query)
 
-    print("Aliases:")
-    for i, alias in enumerate(aliases):
-        print(f"{i+1}) {alias}")
-    
+    if debug:
+        if len(aliases) > 0:
+            print("Aliases:")
+            for i, alias in enumerate(aliases):
+                print(f"{i+1}) {alias}")
+        else:
+            print("No aliases were found in the query")
+
     matches = match_patterns_regex(query, aliases)
-    
+
     end_results = []
 
     if len(matches) == 0:
         if len(aliases) == 0:
-            print("Oops! We didn't find any pattern matches nor did we find aliases. Skipping!")
+            if debug:
+                print("No patterns were found in the query, so no results can be produced")
             return
         else:
-            print("Hmm. We didn't find any pattern matches but we did we find aliases! We'll continue with all of those.")
+            if debug:
+                print("No patterns found in query, so all aliases are considered as results")
             matches = []
             for alias in aliases:
                 span = (None, None)
@@ -38,10 +45,11 @@ def query_in_text(query):
                     }
                 })
 
-    print("Matches:")
+    if debug:
+        print("Matches:")
     for i, match in enumerate(matches):
         # match["patterns"]["resource_title"]
-        
+
         resource_title, book_number = match["patterns"]["TITLE"], match["patterns"].get("BOOK", None)
 
         results = []
@@ -63,17 +71,21 @@ def query_in_text(query):
             if len(results) == 0:
                 results = find_matching_aliases(resource_title, wildcard=('r'))
 
-        print(f"{i+1}) Match at character positions {match['span'][0]} to {match['span'][1]} of pattern {match}:")
+        if debug:
+            print(f"{i+1}) Match at character positions {match['span'][0]} to {match['span'][1]} of pattern {match}:")
         if len(results) == 0:
-            print(" -> NO RESULTS (shouldn't happend)")
+            if debug:
+                print(" -> NO RESULTS (shouldn't happend)")
         else:
             for result in results:
                 end_results.append(result)
-                print(f" -> {result[0]} ({result[1]})")
-    print()
+                if debug:
+                    print(f" -> {result[0]} ({result[1]})")
+    if debug:
+        print()
     return end_results
 
-def query_exact(query: str):
+def query_exact(query: str, debug=False):
     query = query.strip()
     results = []
 
@@ -88,7 +100,7 @@ def query_exact(query: str):
         if len(aliases) == 0:
             found = find_longest_alias_in_substring(query)
             aliases = [found] if found is not None else []
-        
+
         for alias in aliases:
             result = {
                 'resource': {
@@ -100,7 +112,7 @@ def query_exact(query: str):
         for i, match in enumerate(matches):
             if not 'TITLE' in match['patterns']:
                 continue
-        
+
             resource_title, book_number = match["patterns"]["TITLE"], match["patterns"].get("BOOK", None)
 
             aliases = []
@@ -125,10 +137,10 @@ def query_exact(query: str):
                     if len(aliases) == 0:
                         # search without 'boek {nr}' suffix
                         aliases = find_matching_aliases(resource_title, wildcard=('r'))
-                
+
                 if len(aliases) == 0:
                     # if above both didnt lead to results, perform substring match
-                    # this (temporarily) fixes 
+                    # this (temporarily) fixes
                     found = find_longest_alias_in_substring(resource_title)
                     aliases = [found] if found is not None else aliases
 
@@ -146,7 +158,7 @@ def query_exact(query: str):
                         parts['number'] = match['patterns']['ARTICLE']
                     else:
                         continue # temporarily
-                    
+
                     elements = find_laws_from_parts(parts)
                     for element in elements:
                         results.append(element)

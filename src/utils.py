@@ -11,29 +11,27 @@ def find_aliases_in_text(input_text):
 
         # (wildcard) escaping of input not necessary since the input is the
         # column in the where clause, not the value
-        # input_text_escaped = re.sub(r'([_%])', r'\\\1', input_text) 
+        # input_text_escaped = re.sub(r'([_%])', r'\\\1', input_text)
 
         if DB_BACKEND == 'sqlite':
             cursor.execute('''
-                SELECT id, alias FROM law_alias
+                SELECT alias FROM law_alias
                 WHERE ? LIKE '%' || alias || '%'
                 GROUP BY alias
                 LIMIT 50;
             ''', (input_text,))
         elif DB_BACKEND == 'postgres':
             cursor.execute('''
-                SELECT id, alias FROM law_alias
-                WHERE %s ILIKE '%' || alias || '%'
-                GROUP BY alias
+                SELECT DISTINCT alias FROM law_alias
+                WHERE %s ILIKE '%%' || alias || '%%'
                 LIMIT 50;
             ''', (input_text,))
 
         results = []
-        for row in cursor.fetchall():
-            if re.search(rf"\b{re.escape(row[1])}\b", input_text, flags=re.IGNORECASE):
-                results.append(row[1])
-        
-        conn.close()
+        for (alias,) in cursor.fetchall():
+            if re.search(rf"\b{re.escape(alias)}\b", input_text, flags=re.IGNORECASE):
+                results.append(alias)
+
         return results
 
 def find_longest_alias_in_substring(input_text):
@@ -61,7 +59,7 @@ def find_longest_alias_in_substring(input_text):
 
         result = cursor.fetchone()
 
-        return result    
+        return result
 
 def find_matching_aliases(name, wildcard=None):
     with get_conn() as conn:
@@ -110,7 +108,7 @@ def find_matching_aliases(name, wildcard=None):
                 FROM ranked_aliases
                 WHERE length_rank = 1;
             ''', (name_escaped,))
-        
+
         results = [row for row in cursor.fetchall()]
     return results
 
@@ -129,7 +127,7 @@ def get_amount_cases_by_law_filter(result):
                 FROM law_element l
                 JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
-                WHERE 
+                WHERE
                     l.type = ? AND
                     l.bwb_id = ? AND
                     l.number = ?
@@ -140,12 +138,12 @@ def get_amount_cases_by_law_filter(result):
                 FROM law_element l
                 JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
-                WHERE 
+                WHERE
                     l.type = %s AND
                     l.bwb_id = %s AND
                     l.number = %s
             """, ('artikel', result['resource']['id'], result['fragment']['article'],))
-        
+
         amount = cursor.fetchone()
         if amount:
             return amount[0]
@@ -167,7 +165,7 @@ def get_cases_by_law_filter(result):
                 FROM law_element l
                 JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
-                WHERE 
+                WHERE
                     l.type = ? AND
                     l.bwb_id = ? AND
                     l.number = ?
@@ -180,20 +178,20 @@ def get_cases_by_law_filter(result):
                 FROM law_element l
                 JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
-                WHERE 
+                WHERE
                     l.type = %s AND
                     l.bwb_id = %s AND
                     l.number = %s
                 GROUP BY c.id
                 LIMIT 5000
             """, ('artikel', result['resource']['id'], result['fragment']['article'],))
-        
+
         return [row[0] for row in cursor.fetchall()]
 
 def find_laws_from_parts(parts):
     with get_conn() as conn:
         cursor = conn.cursor()
-        
+
         where_clause = []
         where_values = []
         if 'bwb_id' in parts:
@@ -205,9 +203,9 @@ def find_laws_from_parts(parts):
         if 'number' in parts:
             where_clause.append('lower(l.number) = lower(?)')
             where_values.append(parts['number'])
-        
+
         where_clause = " AND ".join(where_clause)
-        
+
         if DB_BACKEND == 'sqlite':
             cursor.execute(f"""
                 SELECT l.type, l.number, l.bwb_id, l.bwb_label_id, l.title, COUNT(DISTINCT c.ecli_id) as related_cases
@@ -226,7 +224,7 @@ def find_laws_from_parts(parts):
                 FROM law_element l
                 JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
-                WHERE 
+                WHERE
                     1=1 AND
                     {where_clause.replace('?', '%s')}
                 GROUP BY l.bwb_label_id, l.type, l.number, l.bwb_id, l.bwb_label_id, l.title
@@ -261,7 +259,7 @@ def get_cases_by_bwb_and_label_id(bwb_id, bwb_label_id):
                 FROM law_element l
                 JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
-                WHERE 
+                WHERE
                     l.bwb_id = ? AND
                     l.bwb_label_id = ?
                 GROUP BY c.id
@@ -273,11 +271,11 @@ def get_cases_by_bwb_and_label_id(bwb_id, bwb_label_id):
                 FROM law_element l
                 JOIN case_law cl ON (cl.law_id = l.id)
                 JOIN legal_case c ON (cl.case_id = c.id)
-                WHERE 
+                WHERE
                     l.bwb_id = %s AND
                     l.bwb_label_id = %s
                 GROUP BY c.id
                 LIMIT 5000
             """, (bwb_id, bwb_label_id,))
-        
+
         return [[row[0], row[1].split(",")] for row in cursor.fetchall()]
