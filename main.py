@@ -1,6 +1,8 @@
-from src.db import set_db_url
+from src.analyze.prepare import prepare
+from src.db import set_db_url, DB_BACKEND
 from src.search import query_exact, query_in_text
 from src.utils import get_cases_by_bwb_and_label_id
+from src.analyze.main import analyze
 import sys
 
 import argparse
@@ -46,17 +48,21 @@ def main():
     eval.add_argument("-e", "--exact", help="match exact", action=argparse.BooleanOptionalAction)
     eval.add_argument("string", help="string to parse from", type=str)
 
-    test = subparsers.add_parser(
+    parser_test = subparsers.add_parser(
         "test",
         help="test predefined queries",
         parents=[parent_parser]
     )
 
-    analyze = subparsers.add_parser(
+    parser_analyze = subparsers.add_parser(
         "analyze",
         help="run pipeline for analysis of texts from db",
         parents=[parent_parser]
     )
+    
+    parser_analyze.add_argument("-p", "--prepare", help="prepare", action="store_true")
+    parser_analyze.add_argument("-n", "--samples", help="amount of samples to prepare (use with --prepare)", type=int)
+    parser_analyze.add_argument("-s", "--seed", help="seed for getting random sample from db", type=int)
 
     args = parser.parse_args()
 
@@ -82,7 +88,14 @@ def main():
         test_queries()
 
     elif args.command == "analyze":
-        print("Brrrr")
+        if args.samples is not None and args.prepare is None:
+            parser.error("argument -n/--samples requires -p/--prepare")
+        if args.seed is not None and args.prepare is None:
+            parser.error("argument -s/--seed requires -p/--prepare")
+            
+        if args.prepare:
+            prepare(args.samples, args.seed)
+        analyze()
 
 
 def test_queries():
