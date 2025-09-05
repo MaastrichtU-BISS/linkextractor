@@ -1,7 +1,7 @@
 from typing import Dict, List, Literal, Union
 import re
 
-def capture(name: str, pattern: re.Pattern):
+def capture(name: str, pattern: str):
     return rf"(?P<{name}>{pattern})"
 
 # Define your patterns using curly braces as placeholders.

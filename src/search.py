@@ -26,7 +26,7 @@ def query_in_text(query, debug=False):
         if len(aliases) == 0:
             if debug:
                 print("No patterns were found in the query, so no results can be produced")
-            return
+            return []
         else:
             if debug:
                 print("No patterns found in query, so all aliases are considered as results")
@@ -80,7 +80,7 @@ def query_in_text(query, debug=False):
             for result in results:
                 end_results.append(result)
                 if debug:
-                    print(f" -> {result[0]} ({result[1]})")
+                    print(f" -> {result['alias']} ({result['bwb_id']})")
     if debug:
         print()
     return end_results
@@ -96,6 +96,8 @@ def query_exact(query: str, debug=False):
 
     # if no pattern matches, try find longest substring
     if len(matches) == 0:
+        if debug:
+            print("No patterns found")
         aliases = find_matching_aliases(query, wildcard=('l', 'r'))
         if len(aliases) == 0:
             found = find_longest_alias_in_substring(query)
@@ -145,17 +147,20 @@ def query_exact(query: str, debug=False):
                     aliases = [found] if found is not None else aliases
 
             if len(aliases) == 0:
-                # print(" -> NO RESULTS (shouldn't happend)")
-                pass
+                if debug:
+                    print("No aliases found")
             else:
+                if debug:
+                    print(f"Aliases found: {'asd'.join([alias['alias'] for alias in aliases])}")
                 for alias in aliases:
                     parts = {
-                        'bwb_id': alias[1]
+                        'bwb_id': alias['bwb_id']
                     }
 
                     if 'ARTICLE' in match['patterns']:
-                        parts['type'] = 'artikel'
-                        parts['number'] = match['patterns']['ARTICLE']
+                        parts['article'] = match['patterns']['ARTICLE']
+                    # elif 'BOOK' in match['patterns']:
+                    #     parts['boek'] = match['patterns']['ARTICLE']
                     else:
                         continue # temporarily
 

@@ -57,7 +57,14 @@ def find_longest_alias_in_substring(input_text):
                 LIMIT 1;
             ''', (input_text,))
 
-        result = cursor.fetchone()
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        result = {
+            'alias': row[0],
+            'bwb_id': row[1]
+        }
 
         return result
 
@@ -109,7 +116,10 @@ def find_matching_aliases(name, wildcard=None):
                 WHERE length_rank = 1;
             ''', (name_escaped,))
 
-        results = [row for row in cursor.fetchall()]
+        results = [{
+            'alias': row[0],
+            'bwb_id': row[1]
+        } for row in cursor.fetchall()]
     return results
 
 def get_amount_cases_by_law_filter(result):
@@ -188,7 +198,71 @@ def get_cases_by_law_filter(result):
 
         return [row[0] for row in cursor.fetchall()]
 
+# find_laws_from_parts
+# returns all laws from the database that satisfy the parts passed
+# parts contain information from regex pattern matching
 def find_laws_from_parts(parts):
+    with get_conn() as conn:
+        cursor = conn.cursor()
+
+        where_clause = []
+        where_values = []
+        if 'bwb_id' in parts:
+            where_clause.append('l.bwb_id = ?')
+            where_values.append(parts['bwb_id'])
+        if 'article' in parts:
+            where_clause.append('l.type = ?')
+            where_values.append('artikel')
+            where_clause.append('lower(l.number) = lower(?)')
+            where_values.append(parts['article'])
+
+        where_clause = " AND ".join(where_clause)
+
+        if DB_BACKEND == 'sqlite':
+            cursor.execute(f"""
+                SELECT l.type, l.number, l.bwb_id, l.bwb_label_id, l.title
+                FROM law_element l
+                WHERE
+                    1=1 AND
+                    {where_clause}
+                GROUP BY l.type, l.number, l.bwb_id, l.bwb_label_id, l.title
+                LIMIT 5000
+            """, where_values)
+        elif DB_BACKEND == 'postgres':
+            cursor.execute(f"""
+                SELECT l.type, l.number, l.bwb_id, l.bwb_label_id, l.title
+                FROM law_element l
+                WHERE
+                    1=1 AND
+                    {where_clause.replace('?', '%s')}
+                GROUP BY l.type, l.number, l.bwb_id, l.bwb_label_id, l.title
+                LIMIT 5000
+            """, where_values)
+
+        for row in cursor.fetchall():
+            print(row)
+
+        return [
+            # {
+            #     'type': row[0],
+            #     'number': row[1],
+            #     'bwb_id': row[2],
+            #     'bwb_label_id': row[3],
+            #     'title': row[4],
+            # }
+            {
+                'resource': {
+                    'name': row[4],
+                    'bwb_id': row[2],
+                    'bwb_label_id': row[3],
+                },
+                'fragment': {
+                    row[0]: row[1]
+                }
+            } for row in cursor.fetchall()
+        ]
+
+def find_laws_from_parts_with_n_cases(parts):
     with get_conn() as conn:
         cursor = conn.cursor()
 
