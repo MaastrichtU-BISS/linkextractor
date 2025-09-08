@@ -95,7 +95,7 @@ def main():
             
         if args.prepare:
             prepare(args.samples, args.seed)
-        analyze()
+        analyze(args.verbose)
 
 
 def test_queries():

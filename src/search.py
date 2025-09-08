@@ -1,12 +1,14 @@
+import re
 from src.patterns import fix_matches, match_patterns_regex
 from src.utils import *
 
 def query_in_text(query, debug=False):
     """
-    Find matches in a larger text. This function is in progress and not finished yet.
+    Find matches in a larger text.
     """
     if debug:
-        print(f"Query: \"{query}\"")
+        disp_query = re.sub(r'\n+|\s+', ' ', query[0:128])+'...' if len(query) > 128 else query
+        print(f"Query: \"{disp_query}\"")
 
     aliases = find_aliases_in_text(query)
 
@@ -106,8 +108,8 @@ def query_exact(query: str, debug=False):
         for alias in aliases:
             result = {
                 'resource': {
-                    'name': alias[0],
-                    'id': alias[1]
+                    'name': alias['alias'],
+                    'id': alias['bwb_id']
                 }
             }
     else:
