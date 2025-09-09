@@ -1,5 +1,6 @@
 import os
 import json
+from src.search import query_in_text
 
 DIR_ANALYSIS_DATA = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 FILE_STATS = "stats.csv"
@@ -14,15 +15,20 @@ def get_amount_case_samples():
                 amount_case_dirs += 1
     return amount_case_dirs
 
-def analyze():
+def compare_links(links_true, links_test):
+    
+    return {}
+
+def analyze(verbose = False):
     amount_case_samples = get_amount_case_samples()
-        
+    
     print(f"Starting analysis on {amount_case_samples} samples...")
     
     confusion_matrix = {
         'TP': 0, # links that custom found that are also in lido
         'FP': 0, # links that custom found that are not in lido
-        'TN': 0, # links that custom did not find, that are also not in lido (valueless, not needed for recall, only for specificity, accuracy and type 1 errors)
+        'TN': None, # links that custom did not find, that are also not in lido
+            # (valueless, not needed for recall, only for specificity, accuracy and type 1 errors)
         'FN': 0  # links that custom did not find, but lido did find
     }
     
@@ -39,5 +45,10 @@ def analyze():
                 print(f"Case {case_ecli} has {len(case_text)} chars and {len(case_lido_links)} links")
                 
                 # compute custom links
+                case_custom_links = query_in_text(case_text, verbose)
                 
-                # compare lido and custom links 
+                # compare lido and custom links
+                diff = compare_links(case_lido_links, case_custom_links)
+    
+    with open(FILE_STATS, 'a') as f:
+        f.write(",".join([str(x) for x in confusion_matrix.values()]))
