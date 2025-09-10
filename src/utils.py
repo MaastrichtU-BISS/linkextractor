@@ -260,12 +260,64 @@ def find_laws_from_parts(parts) -> LinkList:
             new_law['fragment'][row[0]] = row[1]
         
         return laws
-                'fragment': {
-                    row[0]: row[1]
-                }
-            } for row in cursor.fetchall()
-        ]
+    
+def find_law(alias, fragments):
+    assert DB_BACKEND=="postgres", "postgres is needed for this function"
 
+    assert len(alias.strip()) == 0, "alias should not be empty"
+    assert len(fragments) == 0, "list of fragments should not be empty"
+    
+    # order fragments based on specificity/narrowness
+    type_order = ['wet', 'boek', 'deel', 'titeldeel', 'hoofdstuk', 'artikel',
+        'paragraaf', 'subparagraaf', 'afdeling']
+    order_map = {law_type: index for index, law_type in enumerate(type_order)}
+    fragments = sorted(fragments, key=lambda frag: order_map[frag[0]])
+
+    # determine most narrow fragment
+    narrow_fragment_type, narrow_fragment_number = fragments[-1]
+
+    with get_conn() as conn:
+        cursor = conn.cursor()
+
+        # fragment_params = [item for sublist in fragments for item in sublist]
+        params = (
+            alias.lower(),
+            tuple(fragments),
+            len(fragments),
+            narrow_fragment_type,
+            narrow_fragment_number
+        )
+        
+        cursor.execute("""
+            WITH qualifying_bwb AS (
+                SELECT
+                    le.bwb_id
+                FROM
+                    public.law_element AS le
+                    JOIN public.law_alias AS la ON le.bwb_id = la.bwb_id
+                WHERE
+                    lower(la.alias)  %s and
+                    (le.type, le.number) in %s
+                GROUP BY
+                    le.bwb_id
+                HAVING
+                COUNT(*) = %s
+            )
+            SELECT
+                le.*
+            FROM
+                public.law_element AS le
+            JOIN
+                qualifying_bwb qb ON le.bwb_id = qb.bwb_id
+            WHERE
+                le.type = %s AND le.number = %s;
+        """, params)
+
+        if cursor.rowcount > 1:
+            logging.debug("link results in multiple resulting")
+            return None
+
+    
 def find_laws_from_parts_with_n_cases(parts):
     with get_conn() as conn:
         cursor = conn.cursor()
