@@ -1,8 +1,10 @@
+import logging
 from typing import Union, List
 import sqlite3
 import re
 from src.db import DB_BACKEND, get_conn
 from src.patterns import PT_ATOMS, PT_REFS, capture, get_patterns
+from src.types import LinkList
 
 def find_aliases_in_text(input_text):
     # performs WHERE ? LIKE column, instead of WHERE column LIKE ?
@@ -201,7 +203,7 @@ def get_cases_by_law_filter(result):
 # find_laws_from_parts
 # returns all laws from the database that satisfy the parts passed
 # parts contain information from regex pattern matching
-def find_laws_from_parts(parts):
+def find_laws_from_parts(parts) -> LinkList:
     with get_conn() as conn:
         cursor = conn.cursor()
 
@@ -239,23 +241,25 @@ def find_laws_from_parts(parts):
                 LIMIT 5000
             """, where_values)
 
-        for row in cursor.fetchall():
-            print(row)
+        # for row in cursor.fetchall():
+        #     logging.debug(row)
 
-        return [
-            # {
-            #     'type': row[0],
-            #     'number': row[1],
-            #     'bwb_id': row[2],
-            #     'bwb_label_id': row[3],
-            #     'title': row[4],
-            # }
-            {
+        laws: LinkList = []
+
+        for row in cursor.fetchall():
+
+            new_law = {
                 'resource': {
                     'name': row[4],
                     'bwb_id': row[2],
                     'bwb_label_id': row[3],
                 },
+                'fragment': {}
+            }
+
+            new_law['fragment'][row[0]] = row[1]
+        
+        return laws
                 'fragment': {
                     row[0]: row[1]
                 }
