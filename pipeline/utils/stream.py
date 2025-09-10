@@ -42,7 +42,6 @@ def parse_subject_block(subject, buffer):
     """
     triple_block = "\n".join(buffer)
     parsed = list(parse(triple_block.encode(), format=RdfFormat.N_TRIPLES))
-    # print(parsed)
     d = defaultdict(list)
     for t in parsed:
         if t.subject.value != subject:

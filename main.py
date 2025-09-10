@@ -1,9 +1,10 @@
 from src.analyze.prepare import prepare
 from src.db import set_db_url, DB_BACKEND
-from src.search import query_exact, query_in_text
+from src.search import extract_links_exact, query_in_text
 from src.utils import get_cases_by_bwb_and_label_id
 from src.analyze.main import analyze
 import sys
+import logging
 
 import argparse
 
@@ -66,6 +67,11 @@ def main():
 
     args = parser.parse_args()
 
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(levelname)s: %(message)s"
+    )
+
     if args.database is not None:
         set_db_url(args.database)
 
@@ -77,12 +83,14 @@ def main():
         results = []
 
         if args.exact:
-            results = query_exact(args.string, args.verbose)
+            results = extract_links_exact(args.string)
         else:
-            results = query_in_text(args.string, args.verbose)
+            results = query_in_text(args.string)
 
+        logging.debug("amount of results: %s", len(results))
         for result in results:
             print(result)
+            # logging.info(result)
 
     elif args.command == "test":
         test_queries()
@@ -95,7 +103,7 @@ def main():
             
         if args.prepare:
             prepare(args.samples, args.seed)
-        analyze(args.verbose)
+        analyze()
 
 
 def test_queries():
@@ -152,10 +160,10 @@ def test_queries():
     # FIRST_ONLY = False
     # GET_CASES = False
 
-    print("DB_BACKEND:", DB_BACKEND)
+    logging.debug("DB_BACKEND:", DB_BACKEND)
 
     for i, query in enumerate(queries):
-        print(f"{i}) Query: \"{query}\"")
+        logging.debug(f"{i}) Query: \"{query}\"")
 
         times = []
         iterations = 1
@@ -164,29 +172,29 @@ def test_queries():
             # results = query_in_text(query)
             results = query_exact(query)
             times.append(time() - time_s)
-        print("  Search performance:")
-        print(f"  - Iterations:  {iterations}")
-        print(f"  - Min time:    {round(min(times), 5)}")
-        print(f"  - Mean time:   {round(sum(times) / len(times), 5)}")
-        print(f"  - Median time: {round(median(times), 5)}")
-        print(f"  - Max time:    {round(max(times), 5)}")
-        print()
+        logging.info("  Search performance:")
+        logging.info(f"  - Iterations:  {iterations}")
+        logging.info(f"  - Min time:    {round(min(times), 5)}")
+        logging.info(f"  - Mean time:   {round(sum(times) / len(times), 5)}")
+        logging.info(f"  - Median time: {round(median(times), 5)}")
+        logging.info(f"  - Max time:    {round(max(times), 5)}")
+        logging.info("")
 
         if len(results) > 0:
-            print("  Results:")
+            logging.info("  Results:")
             for i, element in enumerate(results):
-                print(f"  - Element {i}: {element}")
+                logging.info(f"  - Element {i}: {element}")
                 if GET_CASES:
                     cases = get_cases_by_bwb_and_label_id(element['bwb_id'], element['bwb_label_id'])
                     if len(cases) > 0:
-                        print(f"      - Cases in element {i}: {len(cases)}")
+                        logging.info(f"      - Cases in element {i}: {len(cases)}")
                         for k, case in enumerate(cases):
-                            print(f"        - {k}: {case}")
+                            logging.info(f"        - {k}: {case}")
 
-            print()
+            logging.info("")
         else:
-            print("  No results.")
-        print()
+            logging.info("  No results.")
+        logging.info("")
 
         if FIRST_ONLY:
             break

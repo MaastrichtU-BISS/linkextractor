@@ -1,3 +1,4 @@
+import logging
 import os
 import json
 from src.search import query_in_text
@@ -19,10 +20,10 @@ def compare_links(links_true, links_test):
     
     return {}
 
-def analyze(verbose = False):
+def analyze():
     amount_case_samples = get_amount_case_samples()
     
-    print(f"Starting analysis on {amount_case_samples} samples...")
+    logging.info(f"Starting analysis on {amount_case_samples} samples...")
     
     confusion_matrix = {
         'TP': 0, # links that custom found that are also in lido
@@ -42,10 +43,10 @@ def analyze(verbose = False):
                     case_lido_links_json = f.read()
                     case_lido_links = json.loads(case_lido_links_json)
                 
-                print(f"Case {case_ecli} has {len(case_text)} chars and {len(case_lido_links)} links")
+                logging.info(f"Case {case_ecli} has {len(case_text)} chars and {len(case_lido_links)} links")
                 
                 # compute custom links
-                case_custom_links = query_in_text(case_text, verbose)
+                case_custom_links = query_in_text(case_text)
                 
                 # compare lido and custom links
                 diff = compare_links(case_lido_links, case_custom_links)

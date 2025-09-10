@@ -174,6 +174,7 @@ def match_patterns_regex(text: str, matches: Union[List[tuple], None] = None):
         pt_titles = capture("TITLE", "|".join(re.escape(title) for title in matches))
         patterns = get_patterns({**PT_ATOMS, "TITLE": pt_titles}, False)
     else:
+        # TODO, this version of the patterns can be cached
         patterns = get_patterns(PT_ATOMS, True)
 
     results = []

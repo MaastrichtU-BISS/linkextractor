@@ -1,5 +1,6 @@
 from time import perf_counter
 from contextlib import contextmanager
+import logging
 
 class TimerCollector:
     def __init__(self):
@@ -16,6 +17,6 @@ class TimerCollector:
         for label, times in self.timings.items():
             avg = sum(times) / len(times)
             total = sum(times)
-            print(f"[{label}] runs: {len(times)}, avg: {avg:.6f}s, total: {total:.6f}s")
+            logging.info(f"[{label}] runs: {len(times)}, avg: {avg:.6f}s, total: {total:.6f}s")
 
 

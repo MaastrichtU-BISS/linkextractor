@@ -2,6 +2,7 @@ import random
 import os
 import shutil
 import json
+import logging
 
 from src.db import DB_BACKEND, get_conn
 from .main import DIR_ANALYSIS_DATA, FILENAME_CASE_TEXT, FILENAME_CASE_LIDO_LINKS
@@ -59,7 +60,7 @@ def prepare(sample_size = None, seed = None):
     if sample_size is None: sample_size = 10
     if seed is None: seed = 42
     
-    print(f"Preparing analysis directory with sample of size {sample_size}...")
+    logging.debug(f"Preparing analysis directory with sample of size {sample_size}...")
     
     # 0. clear data dir
     # 1. generate seeded-random list of indexes for retrieving from the database
@@ -106,6 +107,4 @@ def prepare(sample_size = None, seed = None):
         with open(path_case_lido_links, 'w') as f:
             f.write(lido_links_json)
         
-    print("Preperation done ✅")        
-    
-    
+    logging.debug("Preperation done")

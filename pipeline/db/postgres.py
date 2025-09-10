@@ -1,8 +1,9 @@
 import os
 import psycopg2
 from dotenv import load_dotenv
+import logging
 
-def get_conn(db_url: str = None):
+def get_conn(db_url: str | None = None):
     if db_url is None:
         load_dotenv()
         db_url = os.environ["DB_URL"]
@@ -11,7 +12,7 @@ def get_conn(db_url: str = None):
     return psycopg2.connect(db_url, connect_timeout=3)
 
 def init_db(conn):
-    print("Initializing database")
+    logging.debug("Initializing database")
     cursor = conn.cursor()
     # Create table if needed (customize types and columns)
     cursor.execute("""
@@ -64,4 +65,4 @@ def init_db(conn):
     """)
     conn.commit()
     cursor.close()
-    print("Database initialized.")
+    logging.debug("Database initialized.")

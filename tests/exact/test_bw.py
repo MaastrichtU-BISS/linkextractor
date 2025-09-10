@@ -5,7 +5,7 @@ from src import search
 # "Art. 5:1 lid 2 BW",
 
 def test_no_art():
-    results = search.query_exact("5:1 BW")
+    results = search.extract_links_exact("5:1 BW")
 
     assert len(results) == 1, "should be one result"
     result = results[0]
@@ -15,7 +15,7 @@ def test_no_art():
     assert result['fragment']['book'] == '5', "should be book number 5"
 
 def test_art_simple():
-    results = search.query_exact("Art. 5:1 BW")
+    results = search.extract_links_exact("Art. 5:1 BW")
 
     assert len(results) == 1, "should be one result"
     result = results[0]
@@ -25,7 +25,7 @@ def test_art_simple():
     assert result['fragment']['book'] == '5', "should be book number 5"
 
 def test_art_expressive():
-    results = search.query_exact("Artikel 1 van boek 5 van het Burgerlijk Wetboek")
+    results = search.extract_links_exact("Artikel 1 van boek 5 van het Burgerlijk Wetboek")
 
     assert len(results) == 1, "should be one result"
     result = results[0]
@@ -35,7 +35,7 @@ def test_art_expressive():
     assert result['fragment']['book'] == '5', "should be book number 5"
 
 def test_art_expressive_2():
-    results = search.query_exact("Burgerlijk Wetboek Boek 5, Artikel 1")
+    results = search.extract_links_exact("Burgerlijk Wetboek Boek 5, Artikel 1")
 
     assert len(results) == 1, "should be one result"
     result = results[0]
@@ -45,7 +45,7 @@ def test_art_expressive_2():
     assert result['fragment']['book'] == '5', "should be book number 5"
 
 def test_art_expressive_lid():
-    results = search.query_exact("Artikel 1 lid 2 van boek 5 van het Burgerlijk Wetboek")
+    results = search.extract_links_exact("Artikel 1 lid 2 van boek 5 van het Burgerlijk Wetboek")
 
     assert len(results) == 1, "should be one result"
     result = results[0]
@@ -56,7 +56,7 @@ def test_art_expressive_lid():
     assert result['fragment']['subparagraph'] == '2', "should be subparagraph 2"
 
 def test_art_lid():
-    results = search.query_exact("Art. 5:1 lid 2 BW")
+    results = search.extract_links_exact("Art. 5:1 lid 2 BW")
 
     assert len(results) == 1, "should be one result"
     result = results[0]
