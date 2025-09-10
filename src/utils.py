@@ -353,3 +353,38 @@ def get_cases_by_bwb_and_label_id(bwb_id, bwb_label_id):
             """, (bwb_id, bwb_label_id,))
 
         return [[row[0], row[1].split(",")] for row in cursor.fetchall()]
+
+def get_aliases_from_match(match, substring_search = True):
+    resource_title, book_number = match["patterns"]["TITLE"], match["patterns"].get("BOOK", None)
+
+    aliases = []
+    if resource_title is None:
+        return aliases
+        if book_number is None:
+            # article alone is (currently) not enough to retrieve books
+            pass
+        else:
+            # search instances of '%boek {book_number}'
+            # shouldnt happen, should always have book name!!!
+            aliases = find_matching_aliases(f"boek {book_number}", wildcard=('l'))
+
+    else:
+        if book_number is None:
+            # search instances of '{resource_title}%' (like BW% will return BW 1, BW 2, ...)
+            aliases = find_matching_aliases(resource_title, wildcard=('r'))
+
+        else:
+            # search instances of '{resource_title} + {book_number}' (handle cases like Art. 5:123 BW -> Search "BW Boek 5")
+            # TODO: I removed the wildcard=('r') because for BW book 1 it also returned 10. Do more testing.
+            aliases = find_matching_aliases(f"{resource_title} boek {book_number}")
+            if len(aliases) == 0:
+                # search without 'boek {nr}' suffix
+                aliases = find_matching_aliases(resource_title, wildcard=('r'))
+
+        if len(aliases) == 0 and substring_search:
+            # if above both didnt lead to results but we have a title, perform substring search
+            # this (temporarily) fixes
+            found = find_longest_alias_in_substring(resource_title)
+            aliases = [found] if found is not None else aliases
+    
+    return aliases
