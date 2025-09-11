@@ -47,7 +47,7 @@ def main():
         parents=[parent_parser]
     )
     eval.add_argument("-e", "--exact", help="match exact", action=argparse.BooleanOptionalAction)
-    eval.add_argument("string", help="string to parse from", type=str)
+    eval.add_argument("text", nargs="?", help="text to parse from", type=str)
 
     parser_test = subparsers.add_parser(
         "test",
@@ -67,6 +67,11 @@ def main():
 
     args = parser.parse_args()
 
+    if args.text is None:
+        args.text = sys.stdin.read()
+    if args.text is None:
+        parser.error("argument 'text' is required, either as a literal or redirected via stdin")
+
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)s: %(message)s"
@@ -83,9 +88,9 @@ def main():
         results = []
 
         if args.exact:
-            results = extract_links_exact(args.string)
+            results = extract_links_exact(args.text)
         else:
-            results = query_in_text(args.string)
+            results = query_in_text(args.text)
 
         logging.debug("amount of results: %s", len(results))
         for result in results:
@@ -170,7 +175,7 @@ def test_queries():
         for _ in range(iterations):
             time_s = time()
             # results = query_in_text(query)
-            results = query_exact(query)
+            results = extract_links_exact(query)
             times.append(time() - time_s)
         logging.info("  Search performance:")
         logging.info(f"  - Iterations:  {iterations}")
@@ -185,7 +190,7 @@ def test_queries():
             for i, element in enumerate(results):
                 logging.info(f"  - Element {i}: {element}")
                 if GET_CASES:
-                    cases = get_cases_by_bwb_and_label_id(element['bwb_id'], element['bwb_label_id'])
+                    cases = get_cases_by_bwb_and_label_id(element['resource']['bwb_id'], element['resource']['bwb_label_id'])
                     if len(cases) > 0:
                         logging.info(f"      - Cases in element {i}: {len(cases)}")
                         for k, case in enumerate(cases):
