@@ -1,6 +1,6 @@
 from src.analyze.prepare import prepare
 from src.db import set_db_url, DB_BACKEND
-from src.search import extract_links_exact, query_in_text
+from src.search import extract_exact, extract_in_text
 from src.utils import get_cases_by_bwb_and_label_id
 from src.analyze.main import analyze
 import sys
@@ -86,13 +86,14 @@ def main():
 
     if args.command == "eval":
         results = []
-
+        
+        start = time()
         if args.exact:
-            results = extract_links_exact(args.text)
+            results = extract_exact(args.text)
         else:
-            results = query_in_text(args.text)
+            results = extract_in_text(args.text)
 
-        logging.debug("amount of results: %s", len(results))
+        logging.debug("found %s results in %ss", len(results), round(time()-start, 3))
         for result in results:
             print(result)
             # logging.info(result)
@@ -174,8 +175,8 @@ def test_queries():
         iterations = 1
         for _ in range(iterations):
             time_s = time()
-            # results = query_in_text(query)
-            results = extract_links_exact(query)
+            # results = extract_in_text(query)
+            results = extract_exact(query)
             times.append(time() - time_s)
         logging.info("  Search performance:")
         logging.info(f"  - Iterations:  {iterations}")

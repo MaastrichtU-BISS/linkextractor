@@ -1,5 +1,6 @@
 from typing import Dict, List, Literal, Union
 import re
+import logging
 
 def capture(name: str, pattern: str):
     return rf"(?P<{name}>{pattern})"
@@ -171,7 +172,7 @@ def match_patterns_regex(text: str, matches: Union[List[tuple], None] = None):
 
     patterns = None
     if matches is not None and len(matches) > 0:
-        pt_titles = capture("TITLE", "|".join(re.escape(title) for title in matches))
+        pt_titles = capture("TITLE", "|".join(re.escape(str(title)) for title in matches))
         patterns = get_patterns({**PT_ATOMS, "TITLE": pt_titles}, False)
     else:
         # TODO, this version of the patterns can be cached
@@ -183,6 +184,9 @@ def match_patterns_regex(text: str, matches: Union[List[tuple], None] = None):
         for match in re.finditer(pattern, text):
             span = match.span()
             if any(r['span']==span for r in results): # ensure single result per span
+                continue
+            patterns = match.groupdict()
+            if not "TITLE" in patterns:
                 continue
             results.append({
                 "span": span,

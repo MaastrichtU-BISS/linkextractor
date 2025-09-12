@@ -7,3 +7,4 @@ database.db
 .pytest_cache
 caselaw.db
 error.log
+aliases.trie

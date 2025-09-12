@@ -1,7 +1,7 @@
 import logging
 import os
 import json
-from src.search import query_in_text
+from src.search import extract_in_text
 
 DIR_ANALYSIS_DATA = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 FILE_STATS = "stats.csv"
@@ -46,7 +46,7 @@ def analyze():
                 logging.info(f"Case {case_ecli} has {len(case_text)} chars and {len(case_lido_links)} links")
                 
                 # compute custom links
-                case_custom_links = query_in_text(case_text)
+                case_custom_links = extract_in_text(case_text)
                 
                 # compare lido and custom links
                 diff = compare_links(case_lido_links, case_custom_links)

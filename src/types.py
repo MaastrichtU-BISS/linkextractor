@@ -7,8 +7,8 @@ class Resource(TypedDict):
 
 
 class Fragment(TypedDict):
-    book: NotRequired[str]
-    article: NotRequired[str]
+    boek: NotRequired[str]
+    artikel: NotRequired[str]
 
 
 class Link(TypedDict):
@@ -16,3 +16,9 @@ class Link(TypedDict):
     fragment: NotRequired[Fragment]
 
 LinkList = List[Link]
+
+class Alias(TypedDict):
+    bwb_id: str
+    alias: str
+
+AliasList = List[Alias]
