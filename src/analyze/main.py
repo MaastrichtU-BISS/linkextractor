@@ -4,7 +4,7 @@ import json
 from src.search import extract_in_text
 
 DIR_ANALYSIS_DATA = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
-FILE_STATS = "stats.csv"
+FILE_STATS = os.path.join(DIR_ANALYSIS_DATA, "stats.csv")
 FILENAME_CASE_TEXT = "full_text.txt"
 FILENAME_CASE_LIDO_LINKS = "links_lido.json"
 
@@ -52,4 +52,4 @@ def analyze():
                 diff = compare_links(case_lido_links, case_custom_links)
     
     with open(FILE_STATS, 'a') as f:
-        f.write(",".join([str(x) for x in confusion_matrix.values()]))
+        f.write(",".join([str(x) for x in confusion_matrix.values()]) + "\n")

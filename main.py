@@ -67,11 +67,6 @@ def main():
 
     args = parser.parse_args()
 
-    if args.text is None:
-        args.text = sys.stdin.read()
-    if args.text is None:
-        parser.error("argument 'text' is required, either as a literal or redirected via stdin")
-
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)s: %(message)s"
@@ -85,6 +80,11 @@ def main():
         sys.exit(0)
 
     if args.command == "eval":
+        if args.text is None:
+            args.text = sys.stdin.read()
+        if args.text is None:
+            parser.error("argument 'text' is required, either as a literal or redirected via stdin")
+        
         results = []
         
         start = time()
