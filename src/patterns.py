@@ -108,7 +108,10 @@ def sub_pattern_placeholders(pattern, mapping):
 
     return current
 
+_PATTERNS_EXACT_CACHE: List[re.Pattern] | None = None
+
 def get_patterns(mapping, exact=False):
+    global _PATTERNS_EXACT_CACHE
     """
     Generate a list of compiled regular expression patterns from a base set,
     with placeholders replaced using the provided mapping.
@@ -119,6 +122,10 @@ def get_patterns(mapping, exact=False):
     If `exact` is True, each pattern is wrapped to match the entire line (with optional
     leading/trailing whitespace).
     """
+
+    if exact and _PATTERNS_EXACT_CACHE is not None:
+        return _PATTERNS_EXACT_CACHE
+
     compiled_patterns = []
 
     if exact:
@@ -131,6 +138,9 @@ def get_patterns(mapping, exact=False):
         if exact:
             mapped = rf"^\s*{mapped}\s*$"
         compiled_patterns.append(re.compile(mapped, re.VERBOSE | re.IGNORECASE))
+
+    if exact:
+        _PATTERNS_EXACT_CACHE = compiled_patterns
 
     return compiled_patterns
 
@@ -161,24 +171,25 @@ def fix_matches(matches: list):
 
     return matches
 
-def match_patterns_regex(text: str, matches: Union[List[tuple], None] = None):
+def match_patterns_regex(text: str, aliases: Union[List[tuple], None] = None):
     """
-    If matches is None: assume that the whole of text is the reference searching for
-    If matches is not None: assume list of possible matches and search against that
-    If matches is not None but empty: attempted to find matches but no matches to find against so return []
+    If aliases is None: assume that the whole of text is the reference searching for
+    If aliases is not None: assume list of possible aliases and search against that
+    If aliases is not None but empty: attempted to find aliases but no aliases to find against so return []
     """
-    if matches is not None and len(matches) == 0:
+    if aliases is not None and len(aliases) == 0:
         return []
 
     patterns = None
-    if matches is not None and len(matches) > 0:
-        pt_titles = capture("TITLE", "|".join(re.escape(str(title)) for title in matches))
+    if aliases is not None and len(aliases) > 0:
+        pt_titles = capture("TITLE", "|".join(re.escape(str(title)) for title in aliases))
         patterns = get_patterns({**PT_ATOMS, "TITLE": pt_titles}, False)
     else:
         # TODO, this version of the patterns can be cached
         patterns = get_patterns(PT_ATOMS, True)
 
     results = []
+
 
     for pattern in patterns:
         for match in re.finditer(pattern, text):

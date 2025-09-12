@@ -17,8 +17,8 @@ def extract_in_text(text, loose=False):
     DEBUG = logging.getLogger().getEffectiveLevel() == logging.DEBUG
 
     if DEBUG:
-        disp_query = re.sub(r'\n+|\s+', ' ', text[0:128])+'...' if len(text) > 128 else text
-        logging.debug(f"extract_in_text query: \"{disp_query}\"")
+        disp_text = re.sub(r'\n+|\s+', ' ', text[0:128])+'...' if len(text) > 128 else text
+        logging.debug(f"extract_in_text input text: \"{disp_text}\"")
     
     start = time()
     aliases = find_aliases_in_text(text, True)
@@ -89,20 +89,6 @@ def extract_in_text(text, loose=False):
                 },
                 'fragment': fragments
             })
-        
-        # aliases = get_aliases_from_match(match, False)
-
-        # if DEBUG:
-        #     logging.debug(f"{i+1}) Match at character positions {match['span'][0]} to {match['span'][1]} of pattern {match}:")
-        # if len(aliases) == 0:
-        #     if DEBUG:
-        #         logging.debug(" -> NO RESULTS (shouldn't happend)")
-        # else:
-        #     for result in aliases:
-        #         results.append(result)
-        #         if DEBUG:
-        #             logging.debug(f" -> {result['alias']} ({result['bwb_id']})")
-    
 
     return results
 
@@ -120,8 +106,8 @@ def extract_exact(text: str, loose=False) -> List[Link]:
     text = text.strip()
 
     if DEBUG:
-        disp_query = re.sub(r'\n+|\s+', ' ', text[0:128])+'...' if len(text) > 128 else text
-        logging.debug(f"extracty exact query: \"{disp_query}\"")
+        disp_text = re.sub(r'\n+|\s+', ' ', text[0:128])+'...' if len(text) > 128 else text
+        logging.debug(f"extract exact input text: \"{disp_text}\"")
 
     start = time()
     matches = match_patterns_regex(text)
@@ -177,35 +163,7 @@ def extract_exact(text: str, loose=False) -> List[Link]:
                     },
                     'fragment': fragments
                 })
-            
-            continue
-
-            # old:
-            aliases = get_aliases_from_match(match)
-
-            if len(aliases) == 0:
-                if DEBUG:
-                    logging.debug("no aliases found")
-            else:
-                if DEBUG:
-                    logging.debug(f"aliases found: {', '.join([alias['alias'] for alias in aliases])}")
-                for alias in aliases:
-                    parts = {
-                        'bwb_id': alias['bwb_id']
-                    }
-
-                    mapping = {
-                        'ARTICLE': 'article',
-                        'BOOK': 'book',
-                    }
-
-                    for type, number in match['patterns'].items():
-                        parts[mapping[type]] = number
-
-                    elements = find_laws_from_parts(parts)
-                    for element in elements:
-                        results.append(element)
-
+    
     if len(results) > 1:
         logging.warning("more results found for exact search")
 
