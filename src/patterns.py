@@ -201,6 +201,7 @@ def match_patterns_regex(text: str, aliases: Union[List[tuple], None] = None):
                 continue
             results.append({
                 "span": span,
+                "literal": match.group(0),
                 "patterns": match.groupdict()
             })
 

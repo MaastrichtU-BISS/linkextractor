@@ -102,7 +102,7 @@ def prepare(sample_size = None, seed = None):
         # 3. fetch links of corresponding texts from database as ground-truth for (atleast) true-positives
         lido_links = get_lido_links_by_ecli(cursor, case_ecli)
         
-        lido_links_json = json.dumps(lido_links)
+        lido_links_json = json.dumps(lido_links, indent=4)
         
         with open(path_case_lido_links, 'w') as f:
             f.write(lido_links_json)

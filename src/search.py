@@ -26,9 +26,9 @@ def extract_in_text(text, loose=False):
 
     if DEBUG:
         if len(aliases) > 0:
-            logging.debug("aliases:")
-            for i, alias in enumerate(aliases):
-                logging.debug(f"{i+1}) {alias}")
+            logging.debug("aliases found: %s", len(aliases))
+            # for i, alias in enumerate(aliases):
+            #     logging.debug(f"{i+1}) {alias}")
         else:
             logging.debug("no aliases were found in the query")
 
@@ -62,12 +62,25 @@ def extract_in_text(text, loose=False):
 
     logging.debug("matches found: %s", len(matches))
     for i, match in enumerate(matches):
-        logging.debug("%s) %s", i, match)   
+        logging.debug("%s) %s", i, match)
+
+        # for reference:
+        # type          n (law alias) 
+        # ------------  -------------
+        # afdeling	    9035
+        # artikel	    763046
+        # boek	        107
+        # deel	        1767
+        # hoofdstuk     34584
+        # paragraaf     52400
+        # subparagraaf	2950
+        # titeldeel	    5383
+        # wet	        17936
 
         mapping = {
             'ARTICLE': 'artikel',
             'BOOK': 'boek',
-            # 'SUBPARAGRAPH'
+            'SUBPARAGRAPH': 'subparagraaf'
         }
 
         logging.debug(match['patterns']['TITLE'])
@@ -80,10 +93,11 @@ def extract_in_text(text, loose=False):
         for law in laws:
             results.append({
                 'context': {
-                    'span': match['span']
+                    'span': match['span'],
+                    'literal': match['literal']
                 },
                 'resource': {
-                    'name': law['title'],
+                    'title': law['title'],
                     'bwb_id': law['bwb_id'],
                     'bwb_label_id': law['bwb_label_id'],
                 },
@@ -132,7 +146,7 @@ def extract_exact(text: str, loose=False) -> List[Link]:
             # resources without fragments
             results.append({
                 'resource': {
-                    'name': alias['alias'],
+                    'title': alias['alias'],
                     'bwb_id': alias['bwb_id']
                 }
             })
@@ -157,7 +171,7 @@ def extract_exact(text: str, loose=False) -> List[Link]:
             for law in laws:
                 results.append({
                     'resource': {
-                        'name': law['title'],
+                        'title': law['title'],
                         'bwb_id': law['bwb_id'],
                         'bwb_label_id': law['bwb_label_id'],
                     },

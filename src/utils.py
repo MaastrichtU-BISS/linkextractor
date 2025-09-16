@@ -306,7 +306,7 @@ def find_laws_from_parts(parts) -> LinkList:
 
             new_law = {
                 'resource': {
-                    'name': row[4],
+                    'title': row[4],
                     'bwb_id': row[2],
                     'bwb_label_id': row[3],
                 },

@@ -1,7 +1,7 @@
 from typing import List, NotRequired, TypedDict
 
 class Resource(TypedDict):
-    name: str
+    title: str
     bwb_id: str
     bwb_label_id: NotRequired[str]
 
