@@ -327,9 +327,18 @@ def find_laws(fragments: Fragment | None = None, alias: str | None = None, bwb_i
         (type, str(number)) for type, number in fragments.items()
     ]
     
-    # order fragments based on specificity/narrowness
-    type_order = ['wet', 'boek', 'deel', 'titeldeel', 'hoofdstuk', 'artikel',
-        'paragraaf', 'subparagraaf', 'afdeling']
+    # order fragments based on specificity, ordered from broad (top) to narrow
+    type_order = (
+        'wet',
+        'boek',
+        'deel',
+        'titeldeel',
+        'hoofdstuk',
+        'artikel',
+        'paragraaf',
+        # 'subparagraaf', granularity of lid/subparagraph is not available in db so ommited
+        'afdeling'
+    )
     order_map = {law_type: index for index, law_type in enumerate(type_order)}
     fragment_tuples = sorted(fragment_tuples, key=lambda frag: order_map[frag[0]])
 
