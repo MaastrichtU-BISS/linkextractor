@@ -18,7 +18,8 @@ PT_ATOMS = {
     "ID|BOOK": capture('BOOK', r"[0-9]+"),
     "ID|SUBPARAGRAPH": capture("SUBPARAGRAPH", r"\d+"),
     # "ID|ARTICLE": capture('ARTICLE', r"\d+(?:\.\d+)?[a-zA-Z]?(?:-[a-zA-Z0-9]+)?(?:{WS}{LITERAL|SUBPARAGRAPH}{WS}{ID|SUBPARAGRAPH})"),
-    "ID|ARTICLE": capture('ARTICLE', r"\d+(?:\.\d+)?[a-zA-Z]?(?:[-:][a-zA-Z0-9]+)?") + r"(?:{WS}{LITERAL|SUBPARAGRAPH}{WS}{ID|SUBPARAGRAPH})?",
+    # the identifier in subparagraph is optional as it is occasionally omitted
+    "ID|ARTICLE": capture('ARTICLE', r"\d+(?:\.\d+)?[a-zA-Z]?(?:[-:][a-zA-Z0-9]+)?") + r"(?:{WS}{LITERAL|SUBPARAGRAPH}(?:{WS}{ID|SUBPARAGRAPH})?)?", 
 
     "LIDWOORDEN": r"(?:de|het)",
     "TUSSENVOEGSEL": r"(?:{WS}van(?:{WS}{LIDWOORDEN})?)",
