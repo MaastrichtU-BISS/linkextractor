@@ -89,6 +89,7 @@ def analyze():
     amount_case_samples = get_amount_case_samples()
     
     logging.info(f"Starting analysis on {amount_case_samples} samples...")
+    logging.info("")
     
     confusion_matrix = {
         'TP': 0, # links that custom found that are also in lido
@@ -97,6 +98,9 @@ def analyze():
         #     # (valueless, not needed for recall, only for specificity, accuracy and type 1 errors)
         'FN': 0  # links that custom did not find, but lido did find
     }
+
+    logging.info(f" {"ECLI-ID":<30} | {"length":<8} | {"links":<4}  || {"TP":<3} | {"FP":<3} | {"FN":<3}")
+    logging.info(f" -------------------------------+----------+--------++-----+-----+----")
     
     with os.scandir(DIR_ANALYSIS_DATA) as case_dirs:
         for case_dir in case_dirs:
@@ -110,7 +114,7 @@ def analyze():
                     case_lido_links_json = f.read()
                     case_lido_links = json.loads(case_lido_links_json)
 
-                logging.info(f"Case {case_ecli} has {len(case_text)} chars and {len(case_lido_links)} links")
+                # logging.info(f"Case {case_ecli} has {len(case_text)} chars and {len(case_lido_links)} links")
                 
                 # compute custom links
                 case_custom_links = extract_in_text(case_text, unique_spans=True)
@@ -147,21 +151,9 @@ def analyze():
                 # reapply titles to diff results
                 diff = {metric: [obj | {"title": title_lookup[str(obj['bwb_label_id'])]} for obj in value] for metric, value in diff.items()}
 
-                # diff_metrics = {}
-                # for metric, values in diff.items():
-                #     diff_metrics[metric] = len(values)
-                #     logging.info(f"{metric} ({len(values)})")
-                #     if metric == "TP":
-                #         logging.info(f"✅ True Positives ({len(values)})")
-                #     elif metric == "FP":
-                #         logging.info(f"❔ False Positives (or wrong FP in true) ({len(values)})")
-                #     elif metric == "FN":
-                #         logging.info(f"❗ False Negatives (should be caught) ({len(values)})")
-                #     for item in values:
-                #         logging.info(f"-> {item['type']} {item['number']} ({item['bwb_id']}:{item['bwb_label_id']})")
-
                 diff_metrics = {metric: sum(v["n"] for v in values) for metric, values in diff.items()}
-                logging.info(f"Differences: {diff_metrics}")
+
+                logging.info(f" {case_ecli:<30} | {len(case_text):>8} | {len(case_lido_links):>5}  || {diff_metrics['TP']:>3} | {diff_metrics['FP']:>3} | {diff_metrics['FN']:>3}")
 
                 with open(os.path.join(case_dir, FILENAME_CASE_ANALYSIS), "w") as f:
                     f.write(json.dumps(diff, indent=4))
