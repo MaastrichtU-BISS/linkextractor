@@ -47,22 +47,31 @@ These links are links we recognized but are not recognized by lido. Either becau
 - we incorrectly indentified them as links or identified them as the wrong link, or
 - we correctly identified them as a link, while lido missed it (here the real gains can be achieved)
 
-**1. ambiguous aliases**
+**1. Ambiguous aliases**
 
 Rv
 
-**2. Unique opschrifts**
+**2. Unique opschrifts** (solved ✅)
 
 It seems that the links of lido are unique by opschrifts. Meaning, if there are multiple occurances of the same opschrift, they will be noted as (an amount) of 1. 
 To equalize the results between lido and custom, we therefore have to ensure that custom also groups by opschrift (`context->literal`) to ensure we don't falsely flag these as FP.
 Do note that custom also takes into account the spans, and for the analysis ensures that each span is only considered as a unique result.
 
-Example 1, case ECLI:NL:HR:2022:380:
+Example 1, case `ECLI:NL:HR:2022:380`:
 Here "art. 3 Wbbbg" occurs three times in the full-text. However, it is only listed once in the links of lido. 
 In custom, these are caught as three individual links, distinguished by the unique span.
 
 **Solution**:
 Deduplicate the custom links before passing to the comparison function, to ensure same results.
+
+**3. Substring matches**
+
+Example 1, case `ECLI:NL:HR:2022:380`:
+In the following string
+> Art. 1 lid 1 Wbbbg
+the substring
+> **Art. 1 li**
+is interpreted as article 1 of _"Leidraad invordering"_ of which the alias is Li
 
 ### False Negatives
 
@@ -72,7 +81,7 @@ These are links that the custom link-extractor did not recognize.
 
 In some cases, there are multiple references conjoined in a single match/string. For example, having the literal "artiekelen" followed by a list of comma-seperated identifiers, followed by the title:
 
-Example 1, case ECLI:NL:RBZLY:2012:BW8752:
+Example 1, case `ECLI:NL:RBZLY:2012:BW8752`:
 > De beslissing berust op de **artikelen 10, 14a, 14b, 14c, 14d, 22c, 22d, 36f, 48, 300 en 304 van het Wetboek van Strafrecht**, zoals de artikelen luidden ten tijde van het bewezen verklaarde. ()
 These should be identified as 11 seperate links to _Wetboek van Strafrecht_.
 
@@ -80,6 +89,6 @@ Example 2,
 
 **2. Lid**
 
-Example 1, case ECLI:NL:HR:2022:380:
+Example 1, case `ECLI:NL:HR:2022:380`:
 > Besluit van 22 januari 2021, Stb. 2021, 24, houdende inwerkingtreding en inwerkingstelling van **artikel 8, eerste en derde lid, van de Wet buitengewone bevoegdheden burgerlijk gezag**.
 
