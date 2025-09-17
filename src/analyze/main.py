@@ -2,7 +2,7 @@ from collections import Counter
 import logging
 import os
 import json
-from src.search import extract_in_text
+from src.search import extract_links
 from src.types import Link
 from datetime import datetime
 
@@ -117,7 +117,7 @@ def analyze():
                 # logging.info(f"Case {case_ecli} has {len(case_text)} chars and {len(case_lido_links)} links")
                 
                 # compute custom links
-                case_custom_links = extract_in_text(case_text, unique_spans=True)
+                case_custom_links = extract_links(case_text, unique_spans=True)
 
                 # save custom links
                 with open(os.path.join(case_dir, FILENAME_CASE_CUSTOM_LINKS), "w") as f:
