@@ -339,10 +339,58 @@ def find_laws(fragments: Fragment | None = None, alias: str | None = None, bwb_i
     with get_conn() as conn:
         cursor = conn.cursor()
 
-        # fragment_params = [item for sublist in fragments for item in sublist]
+        # Version 1: this version has an extra unique_laws subquery since the laws in law_element may not be unqiue
+        # for example there may exist multple versions of the same law for a different period.
+
+        # params = (
+        #     alias.lower(),
+        #     tuple(fragment_tuples),
+        #     len(fragment_tuples),
+        #     narrow_fragment_type,
+        #     narrow_fragment_number
+        # )
+
+        # if bwb_id is not None:
+        #     params = (bwb_id,) + params
+        
+        # logging.debug("params: %s", params)
+
+        # laws_query = f"""
+        #     WITH unique_laws as (
+        #         SELECT DISTINCT ON (type, bwb_id, bwb_label_id, number) 
+    	#             id, type, bwb_id, bwb_label_id, number
+        #         FROM law_element
+        #     ), 
+        #     qualifying_bwb AS (
+        #         SELECT
+        #             le.bwb_id
+        #         FROM
+        #             unique_laws AS le
+        #             JOIN public.law_alias AS la ON le.bwb_id = la.bwb_id
+        #         WHERE
+        #             {"le.bwb_id = %s and" if bwb_id is not None else ""}
+        #             lower(la.alias) = %s and
+        #             (le.type, le.number) in %s
+        #         GROUP BY
+        #             le.bwb_id
+        #         HAVING
+        #         COUNT(*) = %s
+        #     )
+        #     SELECT
+        #         le.type, le.number, le.bwb_id, le.bwb_label_id, le.title
+        #     FROM
+        #         public.law_element AS le
+        #     JOIN
+        #         qualifying_bwb qb ON le.bwb_id = qb.bwb_id
+        #     WHERE
+        #         le.type = %s AND le.number = %s
+        #     GROUP BY 
+        #         le.type, le.number, le.bwb_id, le.bwb_label_id, le.title;
+        # """
+
         params = (
-            alias.lower(),
             tuple(fragment_tuples),
+            alias.lower(),
             len(fragment_tuples),
             narrow_fragment_type,
             narrow_fragment_number
@@ -354,32 +402,26 @@ def find_laws(fragments: Fragment | None = None, alias: str | None = None, bwb_i
         logging.debug("params: %s", params)
 
         laws_query = f"""
-            WITH unique_laws as (
-                SELECT MIN(id) as id, type, bwb_id, bwb_label_id, number, title
-                FROM law_element
-                GROUP BY type, bwb_id, bwb_label_id, number, title
-            ), 
-            qualifying_bwb AS (
-                SELECT
-                    le.bwb_id
-                FROM
-                    unique_laws AS le
-                    JOIN public.law_alias AS la ON le.bwb_id = la.bwb_id
-                WHERE
+            WITH qualifying_bwb AS (
+                SELECT le.bwb_id
+                FROM (
+                    SELECT bwb_id, bwb_label_id, type, number
+                    FROM law_element
+                    WHERE
                     {"le.bwb_id = %s and" if bwb_id is not None else ""}
-                    lower(la.alias) = %s and
-                    (le.type, le.number) in %s
-                GROUP BY
-                    le.bwb_id
-                HAVING
-                COUNT(*) = %s
+                    (type, number) in %s
+                ) le
+                JOIN law_alias la ON le.bwb_id = la.bwb_id
+                WHERE lower(la.alias) = %s
+                GROUP BY le.bwb_id
+                HAVING COUNT(DISTINCT (type, number)) = %s
             )
             SELECT
                 le.type, le.number, le.bwb_id, le.bwb_label_id, le.title
             FROM
                 public.law_element AS le
             JOIN
-                qualifying_bwb qb ON le.bwb_id = qb.bwb_id
+                qualifying_bwb qb ON le.bwb_id = qb.bwb_id 
             WHERE
                 le.type = %s AND le.number = %s
             GROUP BY 

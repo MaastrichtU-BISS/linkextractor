@@ -158,7 +158,7 @@ def fix_matches(matches: list):
                 interpret the article as [book]:[article]
                 to determine if title is BW, take into account all aliases from
                 the query below that do not contian a book identifier:
-        SELECT DISTINCT(alias) FROM aliases WHERE ref IN (SELECT ref FROM aliases WHERE alias = 'BW');
+                SELECT DISTINCT(alias) FROM aliases WHERE ref IN (SELECT ref FROM aliases WHERE alias = 'BW');
         """
 
         if ':' in match['patterns'].get('ARTICLE', '') and \

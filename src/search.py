@@ -3,7 +3,7 @@ from src.patterns import fix_matches, match_patterns_regex
 from src.types import Fragment, Link
 from src.utils import *
 
-def extract_in_text(text, loose=False):
+def extract_in_text(text, loose=False, unique_spans=True):
     """
     exrtact_in_text
     find and extract link references from a larger text
@@ -35,6 +35,8 @@ def extract_in_text(text, loose=False):
     start = time()
     matches = match_patterns_regex(text, aliases)
     logging.debug("time match patterns: %s", time() - start)
+    
+    matches = fix_matches(matches)
 
     results = []
 
@@ -61,6 +63,9 @@ def extract_in_text(text, loose=False):
                 })
 
     logging.debug("matches found: %s", len(matches))
+
+    spans = []
+
     for i, match in enumerate(matches):
         logging.debug("%s) %s", i, match)
 
@@ -91,6 +96,10 @@ def extract_in_text(text, loose=False):
         laws = find_laws(fragments, match['patterns']['TITLE'])
 
         for law in laws:
+            if match['span'] in spans and unique_spans == True:
+                continue
+
+            spans.append(match['span'])
             results.append({
                 'context': {
                     'span': match['span'],

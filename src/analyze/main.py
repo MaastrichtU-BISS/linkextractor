@@ -1,3 +1,4 @@
+from collections import Counter
 import logging
 import os
 import json
@@ -21,11 +22,11 @@ def get_amount_case_samples():
     return amount_case_dirs
 
 def compare_links(links_true, links_test):
-    true_set = set([tuple(link.items()) for link in links_true])
-    test_set = set([tuple(link.items()) for link in links_test])
+    # true_set = Counter([tuple(link.items()) for link in links_true])
+    # test_set = Counter([tuple(link.items()) for link in links_test])
 
-    # true_set = set(links_true)
-    # test_set = set(links_test)
+    true_set = Counter(links_true)
+    test_set = Counter(links_test)
 
     result_sets = {
         # true positives: items in the test set that are also in the true set
@@ -36,18 +37,10 @@ def compare_links(links_true, links_test):
         "FN": true_set - test_set
     }
 
-    # TP = true_set ^ test_set 
-    # FP = test_set - true_set 
-    # FN = true_set - test_set 
-
-    # TP = [dict(x) for x in TP]
-    # FP = [dict(x) for x in FP]
-    # FN = [dict(x) for x in FN]
-
     results = {}
     
     for metric, values in result_sets.items():
-        results[metric] = [dict(x) for x in values] # type: ignore
+        results[metric] = [dict(link) | {"n": n} for link, n in values.items()] # type: ignore
     
     # return {metric: len(values) for metric, values in results.items()}
     return results
@@ -64,12 +57,12 @@ def normalize_lido_link(lido_link):
     # },
     if lido_link["type"] != "artikel":
         return None
-    return {
+    return tuple({
         "type": lido_link["type"],
         "number": lido_link["number"],
         "bwb_id": lido_link["bwb_id"],
         "bwb_label_id": lido_link["bwb_label_id"],
-    }
+    }.items())
 
 def normalize_custom_link(custom_link: Link):
     # {
@@ -85,12 +78,12 @@ def normalize_custom_link(custom_link: Link):
         return None
     if not "bwb_label_id" in custom_link["resource"]:
         return None
-    return {
+    return tuple({
         "type": "artikel",
         "number": custom_link["fragment"]["artikel"],
         "bwb_id": custom_link["resource"]["bwb_id"],
         "bwb_label_id": custom_link["resource"]["bwb_label_id"],
-    }
+    }.items())
 
 def analyze():
     amount_case_samples = get_amount_case_samples()
@@ -109,45 +102,66 @@ def analyze():
         for case_dir in case_dirs:
             if case_dir.is_dir():
 
-                title_lookup = {}
-
+                # read full-text and lido links
                 case_ecli = os.path.basename(case_dir)
                 with open(os.path.join(case_dir, FILENAME_CASE_TEXT)) as f:
                     case_text = f.read()
                 with open(os.path.join(case_dir, FILENAME_CASE_LIDO_LINKS)) as f:
                     case_lido_links_json = f.read()
                     case_lido_links = json.loads(case_lido_links_json)
-                
-                case_lido_links = list(filter(lambda link: link is not None, map(normalize_lido_link, case_lido_links)))
 
                 logging.info(f"Case {case_ecli} has {len(case_text)} chars and {len(case_lido_links)} links")
                 
                 # compute custom links
-                case_custom_links = extract_in_text(case_text)
+                case_custom_links = extract_in_text(case_text, unique_spans=True)
+
+                # save custom links
                 with open(os.path.join(case_dir, FILENAME_CASE_CUSTOM_LINKS), "w") as f:
                     f.write(json.dumps(case_custom_links, indent=4))
-
-                case_custom_links = list(filter(lambda link: link is not None, map(normalize_custom_link, case_custom_links)))
                 
+                case_custom_links_dedup = []
+                seen_literals = set()
+                for link in case_custom_links:
+                    if link["context"]["literal"] is not None and link["context"]["literal"] not in seen_literals:
+                        case_custom_links_dedup.append(link)
+                        seen_literals.add(link["context"]["literal"])
+                
+                # normalize and make case links hashable (tuple)
+                case_lido_links_normalized = list([
+                    link for link in [normalize_lido_link(link) for link in case_lido_links] if link is not None
+                ])
+                case_custom_links_normalized = list([
+                    link for link in [normalize_custom_link(link) for link in case_custom_links_dedup] if link is not None
+                ])
+                
+                # save titles to lookup dictionary
+                title_lookup = {}
+                for link in case_lido_links:
+                    title_lookup[str(link['bwb_label_id'])] = link['title']
+                for link in case_custom_links:
+                    title_lookup[str(link['resource']['bwb_label_id'])] = link['resource']['title']
+
                 # compare lido and custom links
-                diff = compare_links(case_lido_links, case_custom_links)
+                diff = compare_links(case_lido_links_normalized, case_custom_links_normalized)
 
-                if False:
-                    diff_metrics = {}
-                    for metric, values in diff.items():
-                        diff_metrics[metric] = len(values)
-                        logging.info(f"{metric} ({len(values)})")
-                        if metric == "TP":
-                            logging.info(f"✅ True Positives ({len(values)})")
-                        elif metric == "FP":
-                            logging.info(f"❔ False Positives (or wrong FP in true) ({len(values)})")
-                        elif metric == "FN":
-                            logging.info(f"❗ False Negatives (should be caught) ({len(values)})")
-                        for item in values:
-                            logging.info(f"-> {item['type']} {item['number']} ({item['bwb_id']}:{item['bwb_label_id']})")
+                # reapply titles to diff results
+                diff = {metric: [obj | {"title": title_lookup[str(obj['bwb_label_id'])]} for obj in value] for metric, value in diff.items()}
 
-                diff_metrics = {metric: len(values) for metric, values in diff.items()}
-                logging.info(f"Difference: {diff_metrics}")
+                # diff_metrics = {}
+                # for metric, values in diff.items():
+                #     diff_metrics[metric] = len(values)
+                #     logging.info(f"{metric} ({len(values)})")
+                #     if metric == "TP":
+                #         logging.info(f"✅ True Positives ({len(values)})")
+                #     elif metric == "FP":
+                #         logging.info(f"❔ False Positives (or wrong FP in true) ({len(values)})")
+                #     elif metric == "FN":
+                #         logging.info(f"❗ False Negatives (should be caught) ({len(values)})")
+                #     for item in values:
+                #         logging.info(f"-> {item['type']} {item['number']} ({item['bwb_id']}:{item['bwb_label_id']})")
+
+                diff_metrics = {metric: sum(v["n"] for v in values) for metric, values in diff.items()}
+                logging.info(f"Differences: {diff_metrics}")
 
                 with open(os.path.join(case_dir, FILENAME_CASE_ANALYSIS), "w") as f:
                     f.write(json.dumps(diff, indent=4))
