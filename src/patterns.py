@@ -12,14 +12,21 @@ PT_ATOMS = {
     "COMMA_SPACE": r"(?:[,]{WS_0}|{WS})",
 
     "LITERAL|BOOK": r"(?:boek|bk\.?)",
-    "LITERAL|SUBPARAGRAPH": r"lid",
+    "LITERAL|SUBPARAGRAPH": r"(?:lid|leden)",
     "LITERAL|ARTICLE": r"(?:artikel(?:en)?|artt?\.?)",
+    "LITERAL|CONJUNCTION": r"(?:{WS}jo.|{WS}en|{WS_0},)",
 
     "ID|BOOK": capture('BOOK', r"[0-9]+"),
     "ID|SUBPARAGRAPH": capture("SUBPARAGRAPH", r"\d+"),
     # "ID|ARTICLE": capture('ARTICLE', r"\d+(?:\.\d+)?[a-zA-Z]?(?:-[a-zA-Z0-9]+)?(?:{WS}{LITERAL|SUBPARAGRAPH}{WS}{ID|SUBPARAGRAPH})"),
     # the identifier in subparagraph is optional as it is occasionally omitted
-    "ID|ARTICLE": capture('ARTICLE', r"\d+(?:\.\d+)?[a-zA-Z]?(?:[-:][a-zA-Z0-9]+)?") + r"(?:{WS}{LITERAL|SUBPARAGRAPH}(?:{WS}{ID|SUBPARAGRAPH})?)?", 
+    # "ID|ARTICLE": capture('ARTICLE', r"\d+(?:\.\d+)?[a-zA-Z]?(?:[-:][a-zA-Z0-9]+)?") + r"(?:{WS}{LITERAL|SUBPARAGRAPH}(?:{WS}{ID|SUBPARAGRAPH})?)?",
+
+    # "ID|ARTICLE": r"\d+(?:\.\d+)?[a-zA-Z]?(?:[-:][a-zA-Z0-9]+)?" + r"(?:{WS}{LITERAL|SUBPARAGRAPH}(?:{WS}{ID|SUBPARAGRAPH})?)?",
+    "ID|ARTICLE": capture('ARTICLE', r"\d+(?:\.\d+)?[a-zA-Z]?(?:[-:][a-zA-Z0-9]+)?") + r"(?:{WS}{LITERAL|SUBPARAGRAPH}(?:{WS}{ID|SUBPARAGRAPH})?)?",
+    # "ID|ARTICLES": capture('ARTICLES', r"(?:{ID|ARTICLE}{LITERAL|CONJUNCTION}{WS})+"),
+    "ID|ARTICLES": capture('ARTICLES', r"(?:{ID|ARTICLE}{LITERAL|CONJUNCTION}?{WS_0})+"),
+    # "ID|ARTICLE_OR_ARTICLES": capture('ARTICLES', )
 
     "LIDWOORDEN": r"(?:de|het)",
     "TUSSENVOEGSEL": r"(?:{WS}van(?:{WS}{LIDWOORDEN})?)",
@@ -71,7 +78,7 @@ PT_REFS = [
     r'''
         {LITERAL|ARTICLE}
         {WS}
-        {ID|ARTICLE}
+        {ID|ARTICLES}
         {TUSSENVOEGSEL}?
         {WS}
         {TITLE}
@@ -91,7 +98,7 @@ PT_REFS_EXACT = [
 ]
 
 placeholder_pattern = re.compile(r'\{([^{}]+)\}')
-def sub_pattern_placeholders(pattern, mapping):
+def sub_pattern_placeholders(pattern: re.Pattern, mapping: Dict[str, re.Pattern]) -> re.Pattern:
     """
     Iteratively replace placeholders in s with their corresponding values
     in mapping until no further substitutions are made.
@@ -106,23 +113,41 @@ def sub_pattern_placeholders(pattern, mapping):
         if new_s == current:
             break
         current = new_s
-
+    
     return current
 
-_PATTERNS_EXACT_CACHE: List[re.Pattern] | None = None
+_PATTERNS_ATOM_CACHE: Dict[str, re.Pattern] = {}
+def get_atoms():
+    if len(_PATTERNS_ATOM_CACHE) > 0:
+        return _PATTERNS_ATOM_CACHE
 
-def get_patterns(mapping, exact=False):
+    for key, pattern in PT_ATOMS.items():
+        _PATTERNS_ATOM_CACHE[key] = sub_pattern_placeholders(pattern, PT_ATOMS)
+
+    return _PATTERNS_ATOM_CACHE
+
+_PATTERNS_EXACT_CACHE: List[re.Pattern] | None = None
+def get_patterns(titles: str | None = None):
     global _PATTERNS_EXACT_CACHE
     """
     Generate a list of compiled regular expression patterns from a base set,
     with placeholders replaced using the provided mapping.
 
     The base patterns (from PT_REFS and optionally PT_REFS_EXACT) may contain
-    placeholders in the form {placeholder_name}, which are recursively substituted.
+    placeholders in the form {placeholder_name}, which are iteratively substituted.
 
     If `exact` is True, each pattern is wrapped to match the entire line (with optional
     leading/trailing whitespace).
     """
+
+    atoms = get_atoms()
+
+    if titles is not None:
+        exact = False
+        mapping = {**atoms, "TITLE": titles}
+    else:
+        exact = True
+        mapping = atoms
 
     if exact and _PATTERNS_EXACT_CACHE is not None:
         return _PATTERNS_EXACT_CACHE
@@ -184,15 +209,15 @@ def match_patterns_regex(text: str, aliases: Union[List[tuple], None] = None):
     patterns = None
     if aliases is not None and len(aliases) > 0:
         pt_titles = capture("TITLE", "|".join(re.escape(str(title)) for title in aliases))
-        patterns = get_patterns({**PT_ATOMS, "TITLE": pt_titles}, False)
+        patterns = get_patterns(pt_titles)
     else:
         # TODO, this version of the patterns can be cached
-        patterns = get_patterns(PT_ATOMS, True)
+        patterns = get_patterns()
 
     results = []
 
-
-    for pattern in patterns:
+    for i, pattern in enumerate(patterns):
+        # logging.debug("pattern %s: %s", i, pattern.pattern)
         for match in re.finditer(pattern, text):
             span = match.span()
             if any(r['span']==span for r in results): # ensure single result per span
@@ -200,10 +225,11 @@ def match_patterns_regex(text: str, aliases: Union[List[tuple], None] = None):
             patterns = match.groupdict()
             if not "TITLE" in patterns:
                 continue
-            results.append({
+            result = {
                 "span": span,
                 "literal": match.group(0),
                 "patterns": match.groupdict()
-            })
+            }
+            results.append(result)
 
     return results

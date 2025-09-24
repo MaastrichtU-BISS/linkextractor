@@ -117,7 +117,7 @@ def analyze():
                 # logging.info(f"Case {case_ecli} has {len(case_text)} chars and {len(case_lido_links)} links")
                 
                 # compute custom links
-                case_custom_links = extract_links(case_text, unique_spans=True)
+                case_custom_links = extract_links(case_text)
 
                 # save custom links
                 with open(os.path.join(case_dir, FILENAME_CASE_CUSTOM_LINKS), "w") as f:
@@ -126,9 +126,9 @@ def analyze():
                 case_custom_links_dedup = []
                 seen_literals = set()
                 for link in case_custom_links:
-                    if link["context"]["literal"] is not None and link["context"]["literal"] not in seen_literals:
+                    if link["context"]["literal"] is not None and link["context"]["literal"].lower() not in seen_literals:
                         case_custom_links_dedup.append(link)
-                        seen_literals.add(link["context"]["literal"])
+                        seen_literals.add(link["context"]["literal"].lower())
                 
                 # normalize and make case links hashable (tuple)
                 case_lido_links_normalized = list([
