@@ -418,12 +418,12 @@ def find_laws(fragments: Fragment | None = None, alias: str | None = None, bwb_i
                     FROM law_element
                     WHERE
                     {"le.bwb_id = %s and" if bwb_id is not None else ""}
-                    (type, number) in %s
+                    (type, lower(number)) in %s
                 ) le
                 JOIN law_alias la ON le.bwb_id = la.bwb_id
                 WHERE lower(la.alias) = %s
                 GROUP BY le.bwb_id
-                HAVING COUNT(DISTINCT (type, number)) = %s
+                HAVING COUNT(DISTINCT (type, lower(number))) = %s
             )
             SELECT
                 le.type, le.number, le.bwb_id, le.bwb_label_id, le.title
@@ -432,7 +432,7 @@ def find_laws(fragments: Fragment | None = None, alias: str | None = None, bwb_i
             JOIN
                 qualifying_bwb qb ON le.bwb_id = qb.bwb_id 
             WHERE
-                le.type = %s AND le.number = %s
+                le.type = %s AND lower(le.number) = %s
             GROUP BY 
                 le.type, le.number, le.bwb_id, le.bwb_label_id, le.title;
         """
