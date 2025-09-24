@@ -31,6 +31,10 @@ def generate_id_list(n, max, seed):
 def get_case_by_idx(cursor, idx):
     cursor.execute("select ecli, full_text from ecli_texts order by ecli limit 1 offset %s;", (idx,))
     return cursor.fetchone()
+
+def get_case_by_ecli(cursor, ecli_id):
+    cursor.execute("select ecli, full_text from ecli_texts where ecli = %s limit 1;", (ecli_id,))
+    return cursor.fetchone()
     
 def get_lido_links_by_ecli(cursor, ecli):
     lido_links = []
@@ -54,6 +58,40 @@ def get_lido_links_by_ecli(cursor, ecli):
 
 # def get_rows_by_id_list(id_list):
 #     return results
+
+def prepare_specific(ecli_id):
+    # 2. fetch full-texts from database and place in data folder
+    assert DB_BACKEND == "postgres", "expects postgres backend"
+
+    logging.debug(f"Preparing by appending one cherry-picked ecli: {ecli_id}...")
+    
+    conn = get_conn()
+    cursor = conn.cursor()
+    
+    case = get_case_by_ecli(cursor, ecli_id)
+    
+    if case is None:
+        return
+    
+    (case_ecli, case_full_text,) = case
+    
+    path_case = os.path.join(DIR_ANALYSIS_DATA, str(case_ecli))
+    path_case_text = os.path.join(path_case, FILENAME_CASE_TEXT)
+    path_case_lido_links = os.path.join(path_case, FILENAME_CASE_LIDO_LINKS)
+    os.makedirs(path_case)
+    
+    with open(path_case_text, 'w') as f:
+        f.write(case_full_text)
+    
+    # 3. fetch links of corresponding texts from database as ground-truth for (atleast) true-positives
+    lido_links = get_lido_links_by_ecli(cursor, case_ecli)
+    
+    lido_links_json = json.dumps(lido_links, indent=4)
+    
+    with open(path_case_lido_links, 'w') as f:
+        f.write(lido_links_json)
+        
+    logging.debug("Preperation done")
 
 def prepare(sample_size = None, seed = None):
     # if sample_size is None: sample_size = 1000
