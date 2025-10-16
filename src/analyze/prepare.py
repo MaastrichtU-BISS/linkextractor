@@ -5,7 +5,7 @@ import json
 import logging
 
 from src.db import DB_BACKEND, get_conn
-from .main import DIR_ANALYSIS_DATA, FILENAME_CASE_TEXT, FILENAME_CASE_LIDO_LINKS
+from .method_1 import DIR_ANALYSIS_DATA, FILENAME_CASE_TEXT, FILENAME_CASE_LIDO_LINKS
 
 def generate_id_list(n, max, seed):
     """
@@ -63,7 +63,7 @@ def prepare_specific(ecli_id):
     # 2. fetch full-texts from database and place in data folder
     assert DB_BACKEND == "postgres", "expects postgres backend"
 
-    logging.debug(f"Preparing by appending one cherry-picked ecli: {ecli_id}...")
+    logging.debug(f"Preparing by appending one cherry-picked ecli: {ecli_id}")
     
     conn = get_conn()
     cursor = conn.cursor()
@@ -71,6 +71,7 @@ def prepare_specific(ecli_id):
     case = get_case_by_ecli(cursor, ecli_id)
     
     if case is None:
+        logging.debug("Case with ecli \"%s\" not found", ecli_id)
         return
     
     (case_ecli, case_full_text,) = case
@@ -98,7 +99,7 @@ def prepare(sample_size = None, seed = None):
     if sample_size is None: sample_size = 10
     if seed is None: seed = 42
     
-    logging.debug(f"Preparing analysis directory with sample of size {sample_size}...")
+    logging.debug(f"Preparing analysis directory with sample of size {sample_size}")
     
     # 0. clear data dir
     # 1. generate seeded-random list of indexes for retrieving from the database
@@ -125,6 +126,7 @@ def prepare(sample_size = None, seed = None):
         case = get_case_by_idx(cursor, idx)
         
         if case is None:
+            logging.debug("case with idx %s not found", idx)
             continue
         
         (case_ecli, case_full_text,) = case

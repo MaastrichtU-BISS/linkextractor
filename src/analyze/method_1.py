@@ -6,7 +6,7 @@ from src.search import extract_links
 from src.types import Link
 from datetime import datetime
 
-DIR_ANALYSIS_DATA = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
+DIR_ANALYSIS_DATA = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data_method_1')
 FILE_STATS = os.path.join(DIR_ANALYSIS_DATA, "stats.csv")
 FILENAME_CASE_TEXT = "full_text.txt"
 FILENAME_CASE_LIDO_LINKS = "links_lido.json"
