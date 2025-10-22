@@ -4,6 +4,7 @@ from linkextractor.db import set_db_url, DB_BACKEND
 from linkextractor.search import extract_links
 from linkextractor.utils import get_cases_by_bwb_and_label_id
 from linkextractor.analyze.method_1 import analyze
+from linkextractor.test_queries import test_queries
 import sys
 import logging
 
@@ -15,6 +16,7 @@ import pathlib
 from typing import List, Union
 from statistics import median
 from time import time
+
 
 script_dir = pathlib.Path(__file__).parent.resolve()
 os.chdir(script_dir)
