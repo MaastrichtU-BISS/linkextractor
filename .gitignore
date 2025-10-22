@@ -8,3 +8,4 @@ database.db
 caselaw.db
 error.log
 aliases.trie
+*.egg-info
