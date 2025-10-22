@@ -1,7 +1,7 @@
 import os
 import sqlite3
 
-from src.db import get_conn
+from linkextractor.db import get_conn
 
 def insert_from_trie_file(file_path):
     count_bwb = 0

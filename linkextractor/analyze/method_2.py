@@ -2,8 +2,8 @@ from collections import Counter
 import logging
 import os
 import json
-from src.search import extract_links
-from src.types import Link
+from linkextractor.search import extract_links
+from linkextractor.types import Link
 from datetime import datetime
 import re
 

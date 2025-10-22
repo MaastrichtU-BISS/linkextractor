@@ -1,4 +1,4 @@
-from src import search
+from linkextractor import search
 
 # "5:1 BW",
 # "Art. 5:1 BW",

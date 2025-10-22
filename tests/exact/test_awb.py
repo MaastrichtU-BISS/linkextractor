@@ -1,5 +1,5 @@
 import logging
-from src import search
+from linkextractor import search
 
 
 # "Artikel 4:8 Algemene wet bestuursrecht (hoor en wederhoor)",

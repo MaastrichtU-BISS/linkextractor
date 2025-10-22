@@ -2,9 +2,9 @@ import logging
 from typing import Dict, Tuple, Union, List
 import sqlite3
 import re
-from src.db import DB_BACKEND, get_conn
-from src.patterns import PT_ATOMS, PT_REFS, capture, get_patterns
-from src.types import Alias, AliasList, Fragment, LinkList
+from linkextractor.db import DB_BACKEND, get_conn
+from linkextractor.patterns import PT_ATOMS, PT_REFS, capture, get_patterns
+from linkextractor.types import Alias, AliasList, Fragment, LinkList
 from time import time
 import os
 

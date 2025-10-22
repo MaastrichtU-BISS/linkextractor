@@ -1,9 +1,9 @@
-from src.analyze.method_2 import analyze_2
-from src.analyze.prepare import prepare, prepare_specific
-from src.db import set_db_url, DB_BACKEND
-from src.search import extract_links
-from src.utils import get_cases_by_bwb_and_label_id
-from src.analyze.method_1 import analyze
+from linkextractor.analyze.method_2 import analyze_2
+from linkextractor.analyze.prepare import prepare, prepare_specific
+from linkextractor.db import set_db_url, DB_BACKEND
+from linkextractor.search import extract_links
+from linkextractor.utils import get_cases_by_bwb_and_label_id
+from linkextractor.analyze.method_1 import analyze
 import sys
 import logging
 
@@ -15,8 +15,6 @@ import pathlib
 from typing import List, Union
 from statistics import median
 from time import time
-
-from test_queries import test_queries
 
 script_dir = pathlib.Path(__file__).parent.resolve()
 os.chdir(script_dir)
@@ -39,7 +37,7 @@ def main():
     )
 
     parser = argparse.ArgumentParser(
-        description="LinkExtractor-Lite CommandLine Interface",
+        description="LinkExtractor CommandLine Interface",
         parents=[parent_parser]
     )
     subparsers = parser.add_subparsers(dest="command", required=True)

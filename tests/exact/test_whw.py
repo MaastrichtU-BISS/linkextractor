@@ -1,4 +1,4 @@
-from src import search
+from linkextractor import search
 
 # "Artikel 7.28 WHW",
 # "Artikel 7.57H WHW"

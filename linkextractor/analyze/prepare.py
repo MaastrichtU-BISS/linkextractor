@@ -4,7 +4,7 @@ import shutil
 import json
 import logging
 
-from src.db import DB_BACKEND, get_conn
+from linkextractor.db import DB_BACKEND, get_conn
 from .method_1 import DIR_ANALYSIS_DATA, FILENAME_CASE_TEXT, FILENAME_CASE_LIDO_LINKS
 
 def generate_id_list(n, max, seed):

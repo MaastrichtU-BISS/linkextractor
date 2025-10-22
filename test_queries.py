@@ -2,9 +2,9 @@ import logging
 from statistics import median
 from time import time
 
-from src.db import DB_BACKEND
-from src.search import extract_links
-from src.utils import get_cases_by_bwb_and_label_id
+from linkextractor.db import DB_BACKEND
+from linkextractor.search import extract_links
+from linkextractor.utils import get_cases_by_bwb_and_label_id
 
 def test_queries():
 

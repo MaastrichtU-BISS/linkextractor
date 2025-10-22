@@ -1,6 +1,6 @@
 # Analyze opportunities for improvement of reference extraction recall (WIP / Parked)
 
-The purpose of this subproject of linkextractor-lite is to go through all caselaw texts and attempt to extract references using the linkextractor-lite logic. The extracted links will be compared to the links in the database, originating from LIDO. First, mostly manual analysis will be done to check whether we're extracting references that were not considered by LIDO, or whether LIDO has references that we are not considering.
+The purpose of this subproject of linkextractor is to go through all caselaw texts and attempt to extract references using the linkextractor logic. The extracted links will be compared to the links in the database, originating from LIDO. First, mostly manual analysis will be done to check whether we're extracting references that were not considered by LIDO, or whether LIDO has references that we are not considering.
 
 ## Method 1: Replicate linkextraction to find differences
 

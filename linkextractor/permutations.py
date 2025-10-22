@@ -7,8 +7,8 @@ It is not part of the main functionality of this repository.
 from typing import Literal, Dict
 import re
 import exrex
-from src.utils import get_aliases_of_ids
-from src.search import query_exact
+from linkextractor.utils import get_aliases_of_ids
+from linkextractor.search import query_exact
 
 
 RefType = Literal["BOEK", "ARTIKEL"]

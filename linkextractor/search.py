@@ -1,7 +1,7 @@
 import re
-from src.patterns import fix_matches, get_atoms, match_patterns_regex, sub_pattern_placeholders
-from src.types import Fragment, Link
-from src.utils import *
+from linkextractor.patterns import fix_matches, get_atoms, match_patterns_regex, sub_pattern_placeholders
+from linkextractor.types import Fragment, Link
+from linkextractor.utils import *
 from copy import deepcopy
 
 def extract_links(text, exact=False, loose=False):

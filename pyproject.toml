@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=62.6"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["linkextractor"]
+
+[project]
+name = "linkextractor"
+version = "0.1.0"
+description = "A python package that provides functionality to extract simple links from texts."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[project.urls]
+Homepage = "https://github.com/MaastrichtU-BISS/linkextractor/"
+Repository = "https://github.com/MaastrichtU-BISS/linkextractor/"
+
+[project.scripts]
+linkextractor = "linkextractor.main:main"
