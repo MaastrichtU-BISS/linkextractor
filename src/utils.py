@@ -320,13 +320,10 @@ def find_laws_from_parts(parts) -> LinkList:
 def find_laws(fragments: Fragment | None = None, alias: str | None = None, bwb_id: str | None = None):
     assert DB_BACKEND=="postgres", "postgres is needed for this function"
 
-    assert alias is not None and len(alias.strip()) != 0, "alias should not be empty"
+    # assert alias is not None and len(alias.strip()) != 0, "alias should not be empty"
+    assert (alias is not None and len(alias.strip()) != 0) ^ (bwb_id is not None), "alias should not be empty"
     assert fragments is not None and len(fragments) != 0, "list of fragments should not be empty"
 
-    fragment_tuples: List[Tuple[str, str]] = [
-        (type, str(number)) for type, number in fragments.items()
-    ]
-    
     # order fragments based on specificity, ordered from broad (top) to narrow
     type_order = (
         'wet',
@@ -336,107 +333,100 @@ def find_laws(fragments: Fragment | None = None, alias: str | None = None, bwb_i
         'hoofdstuk',
         'artikel',
         'paragraaf',
-        # 'subparagraaf', granularity of lid/subparagraph is not available in db so ommited
+        # 'subparagraaf', # granularity of lid/subparagraph is not available in db so ommited
         'afdeling'
     )
+
+    fragment_tuples: List[Tuple[str, str]] = [
+        (type, str(number).lower()) for type, number in fragments.items()
+        if type in type_order
+    ]
     order_map = {law_type: index for index, law_type in enumerate(type_order)}
     fragment_tuples = sorted(fragment_tuples, key=lambda frag: order_map[frag[0]])
-
+    
     # determine most narrow fragment
     narrow_fragment_type, narrow_fragment_number = fragment_tuples[-1]
 
     with get_conn() as conn:
         cursor = conn.cursor()
 
-        # Version 1: this version has an extra unique_laws subquery since the laws in law_element may not be unqiue
-        # for example there may exist multple versions of the same law for a different period.
-
-        # params = (
-        #     alias.lower(),
-        #     tuple(fragment_tuples),
-        #     len(fragment_tuples),
-        #     narrow_fragment_type,
-        #     narrow_fragment_number
-        # )
-
-        # if bwb_id is not None:
-        #     params = (bwb_id,) + params
-        
-        # logging.debug("params: %s", params)
-
-        # laws_query = f"""
-        #     WITH unique_laws as (
-        #         SELECT DISTINCT ON (type, bwb_id, bwb_label_id, number) 
-    	#             id, type, bwb_id, bwb_label_id, number
-        #         FROM law_element
-        #     ), 
-        #     qualifying_bwb AS (
-        #         SELECT
-        #             le.bwb_id
-        #         FROM
-        #             unique_laws AS le
-        #             JOIN public.law_alias AS la ON le.bwb_id = la.bwb_id
-        #         WHERE
-        #             {"le.bwb_id = %s and" if bwb_id is not None else ""}
-        #             lower(la.alias) = %s and
-        #             (le.type, le.number) in %s
-        #         GROUP BY
-        #             le.bwb_id
-        #         HAVING
-        #         COUNT(*) = %s
-        #     )
-        #     SELECT
-        #         le.type, le.number, le.bwb_id, le.bwb_label_id, le.title
-        #     FROM
-        #         public.law_element AS le
-        #     JOIN
-        #         qualifying_bwb qb ON le.bwb_id = qb.bwb_id
-        #     WHERE
-        #         le.type = %s AND le.number = %s
-        #     GROUP BY 
-        #         le.type, le.number, le.bwb_id, le.bwb_label_id, le.title;
-        # """
-
-        params = (
-            tuple(fragment_tuples),
-            alias.lower(),
-            len(fragment_tuples),
-            narrow_fragment_type,
-            narrow_fragment_number
-        )
-
-        if bwb_id is not None:
-            params = (bwb_id,) + params
-        
-        logging.debug("params: %s", params)
-
-        laws_query = f"""
-            WITH qualifying_bwb AS (
-                SELECT le.bwb_id
-                FROM (
-                    SELECT bwb_id, bwb_label_id, type, number
-                    FROM law_element
-                    WHERE
-                    {"le.bwb_id = %s and" if bwb_id is not None else ""}
-                    (type, lower(number)) in %s
-                ) le
-                JOIN law_alias la ON le.bwb_id = la.bwb_id
-                WHERE lower(la.alias) = %s
-                GROUP BY le.bwb_id
-                HAVING COUNT(DISTINCT (type, lower(number))) = %s
+        # if we have an alias
+        if alias is not None and bwb_id is None:
+            params = (
+                tuple(fragment_tuples),
+                alias.lower(),
+                len(fragment_tuples),
+                narrow_fragment_type,
+                narrow_fragment_number
             )
-            SELECT
-                le.type, le.number, le.bwb_id, le.bwb_label_id, le.title
-            FROM
-                public.law_element AS le
-            JOIN
-                qualifying_bwb qb ON le.bwb_id = qb.bwb_id 
-            WHERE
-                le.type = %s AND lower(le.number) = %s
-            GROUP BY 
-                le.type, le.number, le.bwb_id, le.bwb_label_id, le.title;
-        """
-        
+            
+            logging.debug("params alias: %s", params)
+
+            laws_query = f"""
+                WITH qualifying_bwb AS (
+                    SELECT le.bwb_id
+                    FROM (
+                        SELECT bwb_id, bwb_label_id, type, number
+                        FROM law_element
+                        WHERE
+                        (type, lower(number)) in %s
+                    ) le
+                    JOIN law_alias la ON le.bwb_id = la.bwb_id
+                    WHERE lower(la.alias) = %s
+                    GROUP BY le.bwb_id
+                    HAVING COUNT(DISTINCT (type, lower(number))) = %s
+                )
+                SELECT
+                    le.type, le.number, le.bwb_id, le.bwb_label_id, le.title
+                FROM
+                    public.law_element AS le
+                JOIN
+                    qualifying_bwb qb ON le.bwb_id = qb.bwb_id 
+                WHERE
+                    le.type = %s AND lower(le.number) = %s
+                GROUP BY 
+                    le.type, le.number, le.bwb_id, le.bwb_label_id, le.title;
+            """
+
+        # if a specific bwb_id is provided instead of an alias (in the case of substring-search alias)
+        elif alias is None and bwb_id is not None:
+            params = (
+                # bwb_id,
+                tuple(fragment_tuples),
+                bwb_id,
+                len(fragment_tuples),
+                narrow_fragment_type,
+                narrow_fragment_number
+            )
+            
+            logging.debug("params bwb: %s", params)
+
+            laws_query = f"""
+                WITH qualifying_bwb AS (
+                    SELECT le.bwb_id
+                    FROM (
+                        SELECT bwb_id, bwb_label_id, type, number
+                        FROM law_element
+                        WHERE
+                            (type, lower(number)) in %s
+                    ) le
+                    JOIN law_alias la ON le.bwb_id = la.bwb_id
+                    WHERE la.bwb_id = %s
+                    GROUP BY le.bwb_id
+                    HAVING COUNT(DISTINCT (type, lower(number))) = %s
+                )
+                SELECT
+                    le.type, le.number, le.bwb_id, le.bwb_label_id, le.title
+                FROM
+                    public.law_element AS le
+                JOIN
+                    qualifying_bwb qb ON le.bwb_id = qb.bwb_id 
+                WHERE
+                    le.type = %s AND lower(le.number) = %s
+                GROUP BY 
+                    le.type, le.number, le.bwb_id, le.bwb_label_id, le.title;
+            """
+
         start = time()
         cursor.execute(laws_query, params)
         logging.debug("time query find_laws: %s", time() - start)

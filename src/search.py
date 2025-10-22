@@ -36,10 +36,7 @@ def extract_links(text, exact=False, loose=False):
 
     # retrieve matches from text using aliases
     start = time()
-    if aliases:
-        matches = match_patterns_regex(text, aliases)
-    else:
-        matches = match_patterns_regex(text, aliases)
+    matches = match_patterns_regex(text, aliases)
     logging.debug("time match patterns: %s", time() - start)
 
     # fix some of the matches that need reformatting for specific casess
@@ -77,6 +74,13 @@ def extract_links(text, exact=False, loose=False):
 
     logging.debug("matches found: %s", len(matches))
 
+
+    mapping = {
+        'ARTICLE': 'artikel',
+        'BOOK': 'boek',
+        'SUBPARAGRAPH': 'subparagraaf'
+    }
+
     pattern_conjunction = get_atoms()['LITERAL|CONJUNCTION']
 
     # process each match to find an appropriately matching law
@@ -84,13 +88,9 @@ def extract_links(text, exact=False, loose=False):
     for i, match in enumerate(matches):
         logging.debug("%s) %s", i, match)
 
-        mapping = {
-            'ARTICLE': 'artikel',
-            'BOOK': 'boek',
-        }
 
         sub_matches = []
-        if 'ARTICLES' in match['patterns']:
+        if not exact and 'ARTICLES' in match['patterns']:
             logging.debug("multiple parts in match at span %s", match['span'])
             # if a match contains multiple references (to articles), then split those up, remove
             # the ARTICLES match and place each individual article in the ARTICLE-pattern 
@@ -108,18 +108,25 @@ def extract_links(text, exact=False, loose=False):
 
         for sub_match in sub_matches:
 
+            # print("AAA", sub_match['patterns'].items())
+
             # construct fragments from a mapping of capture groups-names to types in the db and skip empty captures and the title capture
             fragments: Fragment = {
-                mapping[k]:str(v.lower())
+                mapping[k]:str(v)
                 for k,v in sub_match['patterns'].items()
                 if k != 'TITLE'
-                if k != 'SUBPARAGRAPH' # no entries exist in the database for this type
+                # if k != 'SUBPARAGRAPH' # no entries exist in the database for this type
                 if v is not None
             } # pyright: ignore[reportAssignmentType]
 
             # find the related laws
             logging.debug("find laws with: alias: '%s', fragments: %s", sub_match['patterns']['TITLE'], fragments)
-            laws = find_laws(fragments, sub_match['patterns']['TITLE'])
+            laws = find_laws(fragments, alias=sub_match['patterns']['TITLE'])
+
+            if len(laws) == 0:
+                longest_alias = find_longest_alias_in_substring(sub_match['patterns']['TITLE'])
+                if longest_alias is not None:
+                    laws = find_laws(fragments, bwb_id=longest_alias['bwb_id'])
 
             # process each law
             for law in laws:
@@ -141,6 +148,7 @@ def extract_links(text, exact=False, loose=False):
                     },
                     'fragment': fragments
                 })
+    
     
     if exact and len(results) > 1:
         logging.warning("more than one result found for exact search")
