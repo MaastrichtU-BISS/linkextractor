@@ -16,18 +16,23 @@
 
 ### Options
 
+**Main**
 - `eval`
     - **description**: used to scan strings for links
     - **options**:
         - `-e/--exact`: exact search
+
+**Development commands**
 - `test`
     - **description**: used to test predefined strings for scanning links and its performance
 - `analyze`:
-    - **description**: analyze the correctness of the link-scanning by comparing to lido results
+    - **description**: analyze the correctness of the link-scanning by comparing to lido results (for development and optimization purposes)
     - **options**:
         - `-p/--prepare`: prepare the samples
         - `-n/--samples`: amount of samples to prepare (to be used in conjunction with -p)
         - `-s/--seed`: seed for random generator of lido-entries to compare against (to be used in conjunction with -p)
+        - `-c/--cherry-pick`: cherry pick eclis to download to analyze
+        - `-2`: use the alternative mode for analysis, as defined in method_2.py
         
 
 ## Testing
