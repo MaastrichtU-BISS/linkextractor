@@ -4,7 +4,7 @@ from linkextractor.types import Fragment, Link
 from linkextractor.utils import *
 from copy import deepcopy
 
-def extract_links(text, exact=False, loose=False):
+def extract_links(text, exact=False, loose=False, use_trie=True):
     """
     exrtact_in_text
     find and extract link references from a larger text
@@ -25,7 +25,7 @@ def extract_links(text, exact=False, loose=False):
     if not exact:
         # retrieve aliases
         start = time()
-        aliases = find_aliases_in_text(text, True)
+        aliases = find_aliases_in_text(text, use_trie)
         logging.debug("time retrieve aliases: %s", time() - start)
         if len(aliases) != 0:
             logging.debug("aliases found: %s", len(aliases))
@@ -51,7 +51,7 @@ def extract_links(text, exact=False, loose=False):
         if aliases is None:
             logging.debug("exact search, hence retrieving aliases now (after matching)")
             start = time()
-            aliases = find_aliases_in_text(text, True)
+            aliases = find_aliases_in_text(text, use_trie)
             logging.debug("time retrieve aliases: %s", time() - start)
             
         if len(aliases) == 0:

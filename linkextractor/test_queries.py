@@ -55,15 +55,15 @@ def test_queries():
         "Art. 5:1 lid 2 BW",
     ]
 
-    FIRST_ONLY = True
-    GET_CASES = True
+    FIRST_ONLY = False
+    GET_CASES = False
     # FIRST_ONLY = False
     # GET_CASES = False
 
     logging.debug("DB_BACKEND:", DB_BACKEND)
 
     for i, query in enumerate(queries):
-        logging.debug(f"{i}) Query: \"{query}\"")
+        logging.info(f"{i}) Query: \"{query}\"")
 
         times = []
         iterations = 1
