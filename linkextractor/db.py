@@ -3,8 +3,8 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-DB_URL = os.getenv("DB_URL")
-DB_BACKEND = "postgres"
+DB_URL = os.getenv("LINKEXTRACTOR_DB_URL")
+DB_BACKEND = "postgres" # default
 
 # _DB_URL = None
 # _DB_BACKEND = None
