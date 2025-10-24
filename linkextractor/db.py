@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DB_URL = os.getenv("DB_URL")
-DB_BACKEND = None
+DB_BACKEND = "postgres"
 
 # _DB_URL = None
 # _DB_BACKEND = None
