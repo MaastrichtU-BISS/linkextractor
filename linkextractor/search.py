@@ -1,8 +1,13 @@
 import re
-from linkextractor.patterns import fix_matches, get_atoms, match_patterns_regex, sub_pattern_placeholders
+from linkextractor.patterns import fix_matches, get_atoms, match_patterns_regex
 from linkextractor.types import Fragment, Link
-from linkextractor.utils import *
+from linkextractor.utils import find_aliases_in_text, find_laws, find_longest_alias_in_substring
+# from linkextractor.utils import *
+import logging
+from time import time
+
 from copy import deepcopy
+
 
 def extract_links(text, exact=False, loose=False, use_trie=True):
     """
