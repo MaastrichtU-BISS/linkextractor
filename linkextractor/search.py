@@ -154,7 +154,6 @@ def extract_links(text, exact=False, loose=False, use_trie=True):
                     'fragment': fragments
                 })
     
-    
     if exact and len(results) > 1:
         logging.warning("more than one result found for exact search")
 

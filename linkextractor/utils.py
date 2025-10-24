@@ -340,3 +340,32 @@ def get_cases_by_bwb_and_label_id(bwb_id, bwb_label_id):
             """, (bwb_id, bwb_label_id,))
 
         return [[row[0], row[1].split(",")] for row in cursor.fetchall()]
+
+
+def get_amount_cases_by_bwb_and_label_ids(ids_list: List[Tuple]):
+    """
+    Returns a lookup list with the amount of cases related to a list of tuples of bwb- and bwb_label-ids
+    """
+
+    assert DB_BACKEND == "postgres", "postgres is required for get_amount_cases_by_bwb_and_label_ids"
+
+    result = []
+
+    with get_conn() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT l.bwb_id, l.bwb_label_id, COUNT(DISTINCT cl.case_id)
+            FROM law_element l
+            JOIN case_law cl ON (cl.law_id = l.id)
+            WHERE
+                (l.bwb_id, l.bwb_label_id) IN
+                %s
+            GROUP BY l.bwb_id, l.bwb_label_id
+        """, (tuple(ids_list),))
+        
+        results = cursor.fetchall()
+
+        id_lookup = {(row[0], row[1]): row[2] for row in results}
+
+        return id_lookup
