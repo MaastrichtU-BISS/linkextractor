@@ -1,6 +1,6 @@
 from linkextractor.analyze.method_2 import analyze_2
 from linkextractor.analyze.prepare import prepare, prepare_specific
-from linkextractor.db import set_db_url, DB_BACKEND
+from linkextractor.db import set_db_url
 from linkextractor.search import extract_links
 from linkextractor.utils import get_cases_by_bwb_and_label_id
 from linkextractor.analyze.method_1 import analyze
@@ -50,6 +50,7 @@ def main():
         parents=[parent_parser]
     )
     eval.add_argument("-e", "--exact", help="match exact", action=argparse.BooleanOptionalAction)
+    eval.add_argument("-n", "--no-trie", help="do not use trie for finding aliases", action=argparse.BooleanOptionalAction)
     eval.add_argument("text", nargs="?", help="text to parse from", type=str)
 
     parser_test = subparsers.add_parser(
@@ -89,14 +90,18 @@ def main():
             args.text = sys.stdin.read()
         if args.text is None:
             parser.error("argument 'text' is required, either as a literal or redirected via stdin")
+
+        use_trie = True
+        if args.no_trie is not None and args.no_trie:
+            use_trie = False
         
         results = []
         
         start = time()
         if args.exact:
-            results = extract_links(args.text, exact=True)
+            results = extract_links(args.text, exact=True, use_trie=use_trie)
         else:
-            results = extract_links(args.text)
+            results = extract_links(args.text, exact=False, use_trie=use_trie)
 
         logging.debug("found %s results in %ss", len(results), round(time()-start, 3))
         for result in results:

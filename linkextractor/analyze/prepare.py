@@ -4,7 +4,7 @@ import shutil
 import json
 import logging
 
-from linkextractor.db import DB_BACKEND, get_conn
+from linkextractor.db import get_conn
 from .method_1 import DIR_ANALYSIS_DATA, FILENAME_CASE_TEXT, FILENAME_CASE_LIDO_LINKS
 
 def generate_id_list(n, max, seed):
@@ -60,8 +60,7 @@ def get_lido_links_by_ecli(cursor, ecli):
 #     return results
 
 def prepare_specific(ecli_id):
-    # 2. fetch full-texts from database and place in data folder
-    assert DB_BACKEND == "postgres", "expects postgres backend"
+    # 2. fetch full-texts from database and place in data folde
 
     logging.debug(f"Preparing by appending one cherry-picked ecli: {ecli_id}")
     
@@ -117,7 +116,6 @@ def prepare(sample_size = None, seed = None):
     id_list = generate_id_list(sample_size, 95000, seed)
     
     # 2. fetch full-texts from database and place in data folder
-    assert DB_BACKEND == "postgres", "expects postgres backend"
     
     conn = get_conn()
     cursor = conn.cursor()

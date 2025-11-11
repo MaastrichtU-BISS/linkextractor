@@ -2,7 +2,6 @@ import logging
 from statistics import median
 from time import time
 
-from linkextractor.db import DB_BACKEND
 from linkextractor.search import extract_links
 from linkextractor.utils import get_cases_by_bwb_and_label_id
 
@@ -59,8 +58,6 @@ def test_queries():
     GET_CASES = False
     # FIRST_ONLY = False
     # GET_CASES = False
-
-    logging.debug("DB_BACKEND:", DB_BACKEND)
 
     for i, query in enumerate(queries):
         logging.info(f"{i}) Query: \"{query}\"")

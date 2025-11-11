@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Tuple, Union, List
 import re
-from linkextractor.db import DB_BACKEND, get_conn
+from linkextractor.db import get_conn
 from linkextractor.types import Alias, AliasList, Fragment
 from time import time
 import os
@@ -71,19 +71,11 @@ def find_aliases_in_text(text, use_trie=False):
         # column in the where clause, not the value
         # input_text_escaped = re.sub(r'([_%])', r'\\\1', input_text)
 
-        if DB_BACKEND == 'sqlite':
-            cursor.execute('''
-                SELECT alias FROM law_alias
-                WHERE ? LIKE '%' || alias || '%'
-                GROUP BY alias
-                LIMIT 50;
-            ''', (text,))
-        elif DB_BACKEND == 'postgres':
-            cursor.execute('''
-                SELECT DISTINCT alias FROM law_alias
-                WHERE lower(%s) LIKE '%%' || lower(alias) || '%%'
-                LIMIT 50;
-            ''', (text,))
+        cursor.execute('''
+            SELECT DISTINCT alias FROM law_alias
+            WHERE lower(%s) LIKE '%%' || lower(alias) || '%%'
+            LIMIT 50;
+        ''', (text,))
         
         results = []
         for (alias,) in cursor.fetchall():
@@ -98,22 +90,13 @@ def find_longest_alias_in_substring(input_text) -> Alias | None:
     with get_conn() as conn:
         cursor=conn.cursor()
 
-        if DB_BACKEND == 'sqlite':
-            cursor.execute('''
-                SELECT alias, bwb_id
-                FROM law_alias
-                WHERE ? LIKE alias || '%'
-                ORDER BY LENGTH(alias) DESC
-                LIMIT 1;
-            ''', (input_text,))
-        elif DB_BACKEND == 'postgres':
-            cursor.execute('''
-                SELECT alias, bwb_id
-                FROM law_alias
-                WHERE %s ILIKE alias || '%%'
-                ORDER BY LENGTH(alias) DESC
-                LIMIT 1;
-            ''', (input_text,))
+        cursor.execute('''
+            SELECT alias, bwb_id
+            FROM law_alias
+            WHERE %s ILIKE alias || '%%'
+            ORDER BY LENGTH(alias) DESC
+            LIMIT 1;
+        ''', (input_text,))
 
         row = cursor.fetchone()
         if not row:
@@ -134,43 +117,24 @@ def find_matching_aliases(name, wildcard=None) -> AliasList:
             if 'r' in wildcard:
                 name_escaped = name_escaped+'%'
 
-        if DB_BACKEND == 'sqlite':
-            cursor.execute('''
-                SELECT s.alias, s.bwb_id, s.length_rank
-                FROM (
-                    SELECT
-                        a.id,
-                        a.alias,
-                        a.bwb_id,
-                        ROW_NUMBER() OVER (PARTITION BY a.bwb_id ORDER BY LENGTH(a.alias) DESC) AS length_rank
+        cursor.execute('''
+            WITH ranked_aliases AS (
+                SELECT
+                    a.id,
+                    a.alias,
+                    a.bwb_id,
+                    ROW_NUMBER() OVER (PARTITION BY a.bwb_id ORDER BY LENGTH(a.alias) DESC) AS length_rank
+                FROM law_alias a
+                WHERE a.bwb_id IN (
+                    SELECT DISTINCT a.bwb_id
                     FROM law_alias a
-                    WHERE a.bwb_id IN (
-                        SELECT DISTINCT a.bwb_id
-                        FROM law_alias a
-                        WHERE a.alias LIKE ?
-                    )
-                ) AS s
-                WHERE s.length_rank=1
-            ''', (name_escaped,))
-        elif DB_BACKEND == 'postgres':
-            cursor.execute('''
-                WITH ranked_aliases AS (
-                    SELECT
-                        a.id,
-                        a.alias,
-                        a.bwb_id,
-                        ROW_NUMBER() OVER (PARTITION BY a.bwb_id ORDER BY LENGTH(a.alias) DESC) AS length_rank
-                    FROM law_alias a
-                    WHERE a.bwb_id IN (
-                        SELECT DISTINCT a.bwb_id
-                        FROM law_alias a
-                        WHERE a.alias ILIKE %s
-                    )
+                    WHERE a.alias ILIKE %s
                 )
-                SELECT alias, bwb_id, length_rank
-                FROM ranked_aliases
-                WHERE length_rank = 1;
-            ''', (name_escaped,))
+            )
+            SELECT alias, bwb_id, length_rank
+            FROM ranked_aliases
+            WHERE length_rank = 1;
+        ''', (name_escaped,))
         
         return [{
             'alias': row[0],
@@ -178,7 +142,6 @@ def find_matching_aliases(name, wildcard=None) -> AliasList:
         } for row in cursor.fetchall()]
 
 def find_laws(fragments: Fragment | None = None, alias: str | None = None, bwb_id: str | None = None):
-    assert DB_BACKEND=="postgres", "postgres is needed for this function"
 
     # assert alias is not None and len(alias.strip()) != 0, "alias should not be empty"
     assert (alias is not None and len(alias.strip()) != 0) ^ (bwb_id is not None), "alias should not be empty"
@@ -314,30 +277,17 @@ def get_cases_by_bwb_and_label_id(bwb_id, bwb_label_id):
     with get_conn() as conn:
         cursor = conn.cursor()
 
-        if DB_BACKEND == 'sqlite':
-            cursor.execute("""
-                SELECT c.ecli_id, group_concat(distinct cl.source)
-                FROM law_element l
-                JOIN case_law cl ON (cl.law_id = l.id)
-                JOIN legal_case c ON (cl.case_id = c.id)
-                WHERE
-                    l.bwb_id = ? AND
-                    l.bwb_label_id = ?
-                GROUP BY c.id
-                LIMIT 5000
-            """, (bwb_id, bwb_label_id,))
-        elif DB_BACKEND == 'postgres':
-            cursor.execute("""
-                SELECT c.ecli_id, STRING_AGG(distinct cl.source, ',')
-                FROM law_element l
-                JOIN case_law cl ON (cl.law_id = l.id)
-                JOIN legal_case c ON (cl.case_id = c.id)
-                WHERE
-                    l.bwb_id = %s AND
-                    l.bwb_label_id = %s
-                GROUP BY c.id
-                LIMIT 5000
-            """, (bwb_id, bwb_label_id,))
+        cursor.execute("""
+            SELECT c.ecli_id, STRING_AGG(distinct cl.source, ',')
+            FROM law_element l
+            JOIN case_law cl ON (cl.law_id = l.id)
+            JOIN legal_case c ON (cl.case_id = c.id)
+            WHERE
+                l.bwb_id = %s AND
+                l.bwb_label_id = %s
+            GROUP BY c.id
+            LIMIT 5000
+        """, (bwb_id, bwb_label_id,))
 
         return [[row[0], row[1].split(",")] for row in cursor.fetchall()]
 
@@ -346,8 +296,6 @@ def get_amount_cases_by_bwb_and_label_ids(ids_list: List[Tuple]):
     """
     Returns a lookup list with the amount of cases related to a list of tuples of bwb- and bwb_label-ids
     """
-
-    assert DB_BACKEND == "postgres", "postgres is required for get_amount_cases_by_bwb_and_label_ids"
 
     result = []
 
