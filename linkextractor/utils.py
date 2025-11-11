@@ -27,15 +27,13 @@ def get_trie():
         else:
             # Else: build from DB
             start = time()
-            conn = get_conn()
-            cur = conn.cursor()
-            cur.execute("SELECT DISTINCT lower(alias) FROM law_alias")
-            aliases = []
-            for (alias,) in cur.fetchall():
-                norm = str(alias).lower()
-                aliases.append(norm)
-            cur.close()
-            conn.close()
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT DISTINCT lower(alias) FROM law_alias")
+                    aliases = []
+                    for (alias,) in cur.fetchall():
+                        norm = str(alias).lower()
+                        aliases.append(norm)
 
             # Build trie
             trie = marisa_trie.Trie(aliases)
@@ -65,81 +63,80 @@ def find_aliases_in_text(text, use_trie=False):
 
     # performs WHERE ? LIKE column, instead of WHERE column LIKE ?
     with get_conn() as conn:
-        cursor = conn.cursor()
+        with conn.cursor() as cur:
 
-        # (wildcard) escaping of input not necessary since the input is the
-        # column in the where clause, not the value
-        # input_text_escaped = re.sub(r'([_%])', r'\\\1', input_text)
+            # (wildcard) escaping of input not necessary since the input is the
+            # column in the where clause, not the value
+            # input_text_escaped = re.sub(r'([_%])', r'\\\1', input_text)
 
-        cursor.execute('''
-            SELECT DISTINCT alias FROM law_alias
-            WHERE lower(%s) LIKE '%%' || lower(alias) || '%%'
-            LIMIT 50;
-        ''', (text,))
-        
-        results = []
-        for (alias,) in cursor.fetchall():
-            if re.search(rf"\b{re.escape(alias)}\b", text, flags=re.IGNORECASE):
-                results.append(alias)
+            cur.execute('''
+                SELECT DISTINCT alias FROM law_alias
+                WHERE lower(%s) LIKE '%%' || lower(alias) || '%%'
+                LIMIT 50;
+            ''', (text,))
+            
+            results = []
+            for (alias,) in cur.fetchall():
+                if re.search(rf"\b{re.escape(alias)}\b", text, flags=re.IGNORECASE):
+                    results.append(alias)
 
-        return results
+            return results
 
 def find_longest_alias_in_substring(input_text) -> Alias | None:
     # functions similar to find_aliases_in_text, but only does right wildcard and returns single result
     # (used for exact search)
     with get_conn() as conn:
-        cursor=conn.cursor()
+        with conn.cursor() as cur:
+            cur.execute('''
+                SELECT alias, bwb_id
+                FROM law_alias
+                WHERE %s ILIKE alias || '%%'
+                ORDER BY LENGTH(alias) DESC
+                LIMIT 1;
+            ''', (input_text,))
 
-        cursor.execute('''
-            SELECT alias, bwb_id
-            FROM law_alias
-            WHERE %s ILIKE alias || '%%'
-            ORDER BY LENGTH(alias) DESC
-            LIMIT 1;
-        ''', (input_text,))
+            row = cur.fetchone()
+            if not row:
+                return None
 
-        row = cursor.fetchone()
-        if not row:
-            return None
-
-        return {
-            'alias': row[0],
-            'bwb_id': row[1]
-        }
+            return {
+                'alias': row[0],
+                'bwb_id': row[1]
+            }
 
 def find_matching_aliases(name, wildcard=None) -> AliasList:
     with get_conn() as conn:
-        cursor = conn.cursor()
-        name_escaped = re.sub(r'([_%])', r'\\\1', name)
-        if wildcard is not None:
-            if 'l' in wildcard:
-                name_escaped = '%'+name_escaped
-            if 'r' in wildcard:
-                name_escaped = name_escaped+'%'
+        with conn.cursor() as cur:
+            name_escaped = re.sub(r'([_%])', r'\\\1', name)
+            if wildcard is not None:
+                if 'l' in wildcard:
+                    name_escaped = '%'+name_escaped
+                if 'r' in wildcard:
+                    name_escaped = name_escaped+'%'
 
-        cursor.execute('''
-            WITH ranked_aliases AS (
-                SELECT
-                    a.id,
-                    a.alias,
-                    a.bwb_id,
-                    ROW_NUMBER() OVER (PARTITION BY a.bwb_id ORDER BY LENGTH(a.alias) DESC) AS length_rank
-                FROM law_alias a
-                WHERE a.bwb_id IN (
-                    SELECT DISTINCT a.bwb_id
+            cur.execute('''
+                WITH ranked_aliases AS (
+                    SELECT
+                        a.id,
+                        a.alias,
+                        a.bwb_id,
+                        ROW_NUMBER() OVER (PARTITION BY a.bwb_id ORDER BY LENGTH(a.alias) DESC) AS length_rank
                     FROM law_alias a
-                    WHERE a.alias ILIKE %s
+                    WHERE a.bwb_id IN (
+                        SELECT DISTINCT a.bwb_id
+                        FROM law_alias a
+                        WHERE a.alias ILIKE %s
+                    )
                 )
-            )
-            SELECT alias, bwb_id, length_rank
-            FROM ranked_aliases
-            WHERE length_rank = 1;
-        ''', (name_escaped,))
-        
-        return [{
-            'alias': row[0],
-            'bwb_id': row[1]
-        } for row in cursor.fetchall()]
+                SELECT alias, bwb_id, length_rank
+                FROM ranked_aliases
+                WHERE length_rank = 1;
+            ''', (name_escaped,))
+            
+            return [{
+                'alias': row[0],
+                'bwb_id': row[1]
+            } for row in cur.fetchall()]
 
 def find_laws(fragments: Fragment | None = None, alias: str | None = None, bwb_id: str | None = None):
 
@@ -171,100 +168,100 @@ def find_laws(fragments: Fragment | None = None, alias: str | None = None, bwb_i
     narrow_fragment_type, narrow_fragment_number = fragment_tuples[-1]
 
     with get_conn() as conn:
-        cursor = conn.cursor()
+        with conn.cursor() as cur:
 
-        # if we have an alias
-        if alias is not None and bwb_id is None:
-            params = (
-                tuple(fragment_tuples),
-                alias.lower(),
-                len(fragment_tuples),
-                narrow_fragment_type,
-                narrow_fragment_number
-            )
-            
-            logging.debug("params alias: %s", params)
-
-            laws_query = f"""
-                WITH qualifying_bwb AS (
-                    SELECT le.bwb_id
-                    FROM (
-                        SELECT bwb_id, bwb_label_id, type, number
-                        FROM law_element
-                        WHERE
-                        (type, lower(number)) in %s
-                    ) le
-                    JOIN law_alias la ON le.bwb_id = la.bwb_id
-                    WHERE lower(la.alias) = %s
-                    GROUP BY le.bwb_id
-                    HAVING COUNT(DISTINCT (type, lower(number))) = %s
+            # if we have an alias
+            if alias is not None and bwb_id is None:
+                params = (
+                    tuple(fragment_tuples),
+                    alias.lower(),
+                    len(fragment_tuples),
+                    narrow_fragment_type,
+                    narrow_fragment_number
                 )
-                SELECT
-                    le.type, le.number, le.bwb_id, le.bwb_label_id, le.title
-                FROM
-                    public.law_element AS le
-                JOIN
-                    qualifying_bwb qb ON le.bwb_id = qb.bwb_id 
-                WHERE
-                    le.type = %s AND lower(le.number) = %s
-                GROUP BY 
-                    le.type, le.number, le.bwb_id, le.bwb_label_id, le.title;
-            """
+                
+                logging.debug("params alias: %s", params)
 
-        # if a specific bwb_id is provided instead of an alias (in the case of substring-search alias)
-        elif alias is None and bwb_id is not None:
-            params = (
-                # bwb_id,
-                tuple(fragment_tuples),
-                bwb_id,
-                len(fragment_tuples),
-                narrow_fragment_type,
-                narrow_fragment_number
-            )
-            
-            logging.debug("params bwb: %s", params)
-
-            laws_query = f"""
-                WITH qualifying_bwb AS (
-                    SELECT le.bwb_id
-                    FROM (
-                        SELECT bwb_id, bwb_label_id, type, number
-                        FROM law_element
-                        WHERE
+                laws_query = f"""
+                    WITH qualifying_bwb AS (
+                        SELECT le.bwb_id
+                        FROM (
+                            SELECT bwb_id, bwb_label_id, type, number
+                            FROM law_element
+                            WHERE
                             (type, lower(number)) in %s
-                    ) le
-                    JOIN law_alias la ON le.bwb_id = la.bwb_id
-                    WHERE la.bwb_id = %s
-                    GROUP BY le.bwb_id
-                    HAVING COUNT(DISTINCT (type, lower(number))) = %s
+                        ) le
+                        JOIN law_alias la ON le.bwb_id = la.bwb_id
+                        WHERE lower(la.alias) = %s
+                        GROUP BY le.bwb_id
+                        HAVING COUNT(DISTINCT (type, lower(number))) = %s
+                    )
+                    SELECT
+                        le.type, le.number, le.bwb_id, le.bwb_label_id, le.title
+                    FROM
+                        public.law_element AS le
+                    JOIN
+                        qualifying_bwb qb ON le.bwb_id = qb.bwb_id 
+                    WHERE
+                        le.type = %s AND lower(le.number) = %s
+                    GROUP BY 
+                        le.type, le.number, le.bwb_id, le.bwb_label_id, le.title;
+                """
+
+            # if a specific bwb_id is provided instead of an alias (in the case of substring-search alias)
+            elif alias is None and bwb_id is not None:
+                params = (
+                    # bwb_id,
+                    tuple(fragment_tuples),
+                    bwb_id,
+                    len(fragment_tuples),
+                    narrow_fragment_type,
+                    narrow_fragment_number
                 )
-                SELECT
-                    le.type, le.number, le.bwb_id, le.bwb_label_id, le.title
-                FROM
-                    public.law_element AS le
-                JOIN
-                    qualifying_bwb qb ON le.bwb_id = qb.bwb_id 
-                WHERE
-                    le.type = %s AND lower(le.number) = %s
-                GROUP BY 
-                    le.type, le.number, le.bwb_id, le.bwb_label_id, le.title;
-            """
+                
+                logging.debug("params bwb: %s", params)
 
-        start = time()
-        cursor.execute(laws_query, params)
-        logging.debug("time query find_laws: %s", time() - start)
-        logging.debug("results query find_laws: %s", cursor.rowcount)
-        # logging.debug("query find_laws: %s", laws_query)
+                laws_query = f"""
+                    WITH qualifying_bwb AS (
+                        SELECT le.bwb_id
+                        FROM (
+                            SELECT bwb_id, bwb_label_id, type, number
+                            FROM law_element
+                            WHERE
+                                (type, lower(number)) in %s
+                        ) le
+                        JOIN law_alias la ON le.bwb_id = la.bwb_id
+                        WHERE la.bwb_id = %s
+                        GROUP BY le.bwb_id
+                        HAVING COUNT(DISTINCT (type, lower(number))) = %s
+                    )
+                    SELECT
+                        le.type, le.number, le.bwb_id, le.bwb_label_id, le.title
+                    FROM
+                        public.law_element AS le
+                    JOIN
+                        qualifying_bwb qb ON le.bwb_id = qb.bwb_id 
+                    WHERE
+                        le.type = %s AND lower(le.number) = %s
+                    GROUP BY 
+                        le.type, le.number, le.bwb_id, le.bwb_label_id, le.title;
+                """
 
-        return [
-            {
-                'type': law_row[0],
-                'number': law_row[1],
-                'bwb_id': law_row[2],
-                'bwb_label_id': law_row[3],
-                'title': law_row[4],
-            } for law_row in cursor.fetchall()
-        ]
+            start = time()
+            cur.execute(laws_query, params)
+            logging.debug("time query find_laws: %s", time() - start)
+            logging.debug("results query find_laws: %s", cur.rowcount)
+            # logging.debug("query find_laws: %s", laws_query)
+
+            return [
+                {
+                    'type': law_row[0],
+                    'number': law_row[1],
+                    'bwb_id': law_row[2],
+                    'bwb_label_id': law_row[3],
+                    'title': law_row[4],
+                } for law_row in cur.fetchall()
+            ]
 
 def get_cases_by_bwb_and_label_id(bwb_id, bwb_label_id):
     """
@@ -275,21 +272,20 @@ def get_cases_by_bwb_and_label_id(bwb_id, bwb_label_id):
     assert bwb_label_id is not None
 
     with get_conn() as conn:
-        cursor = conn.cursor()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT c.ecli_id, STRING_AGG(distinct cl.source, ',')
+                FROM law_element l
+                JOIN case_law cl ON (cl.law_id = l.id)
+                JOIN legal_case c ON (cl.case_id = c.id)
+                WHERE
+                    l.bwb_id = %s AND
+                    l.bwb_label_id = %s
+                GROUP BY c.id
+                LIMIT 5000
+            """, (bwb_id, bwb_label_id,))
 
-        cursor.execute("""
-            SELECT c.ecli_id, STRING_AGG(distinct cl.source, ',')
-            FROM law_element l
-            JOIN case_law cl ON (cl.law_id = l.id)
-            JOIN legal_case c ON (cl.case_id = c.id)
-            WHERE
-                l.bwb_id = %s AND
-                l.bwb_label_id = %s
-            GROUP BY c.id
-            LIMIT 5000
-        """, (bwb_id, bwb_label_id,))
-
-        return [[row[0], row[1].split(",")] for row in cursor.fetchall()]
+            return [[row[0], row[1].split(",")] for row in cur.fetchall()]
 
 
 def get_amount_cases_by_bwb_and_label_ids(ids_list: List[Tuple]):
@@ -300,20 +296,19 @@ def get_amount_cases_by_bwb_and_label_ids(ids_list: List[Tuple]):
     result = []
 
     with get_conn() as conn:
-        cursor = conn.cursor()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT l.bwb_id, l.bwb_label_id, COUNT(DISTINCT cl.case_id)
+                FROM law_element l
+                JOIN case_law cl ON (cl.law_id = l.id)
+                WHERE
+                    (l.bwb_id, l.bwb_label_id) IN
+                    %s
+                GROUP BY l.bwb_id, l.bwb_label_id
+            """, (tuple(ids_list),))
+            
+            results = cur.fetchall()
 
-        cursor.execute("""
-            SELECT l.bwb_id, l.bwb_label_id, COUNT(DISTINCT cl.case_id)
-            FROM law_element l
-            JOIN case_law cl ON (cl.law_id = l.id)
-            WHERE
-                (l.bwb_id, l.bwb_label_id) IN
-                %s
-            GROUP BY l.bwb_id, l.bwb_label_id
-        """, (tuple(ids_list),))
-        
-        results = cursor.fetchall()
+            id_lookup = {(row[0], row[1]): row[2] for row in results}
 
-        id_lookup = {(row[0], row[1]): row[2] for row in results}
-
-        return id_lookup
+            return id_lookup

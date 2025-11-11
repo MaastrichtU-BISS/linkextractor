@@ -1,37 +1,50 @@
 import os
+from typing import Iterator
 import psycopg2
 from psycopg2.pool import SimpleConnectionPool
+from psycopg2.extensions import connection
+from contextlib import contextmanager
 from dotenv import load_dotenv
 load_dotenv()
 
 DB_URL = os.getenv("LINKEXTRACTOR_DB_URL")
 
-def set_db_url(_db_url: str):
-    global DB_URL, DB_BACKEND
+MIN_CONN = 1
+MAX_CONN = 5
 
-    if _db_url is None:
-        raise ValueError("db_url must have a value")
-    elif _db_url.startswith("postgres://"):
-        DB_BACKEND = "postgres"
-        DB_URL = _db_url[9:]
-    else:
-        raise ValueError(f"Invalid DB_URL: {_db_url}")
+_pool = None
 
-# if DB_URL is not None:
-#     set_db_url(DB_URL)
+def set_db_url(_db_url):
+    global DB_URL
+    DB_URL = _db_url
 
-_conn = None
+def _get_pool():
+    """Lazy-initialize the pool."""
+    global _pool
+    if _pool is None:
+        _pool = SimpleConnectionPool(
+            MIN_CONN,
+            MAX_CONN,
+            DB_URL
+        )
+    return _pool
 
-def get_conn():
-    global _conn
-    if _conn is not None:
-        return _conn
 
-    if DB_URL is None:
-       raise ValueError("DB_URL not set")
-
-    import psycopg2
-    
-    _conn = psycopg2.connect(DB_URL, connect_timeout=5)
-
-    return _conn
+@contextmanager
+def get_conn() -> Iterator[connection]:
+    """
+    Usage:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(...)
+    """
+    pool = _get_pool()
+    conn = pool.getconn()
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        pool.putconn(conn)

@@ -28,18 +28,18 @@ def generate_id_list(n, max, seed):
     random.seed(seed)
     return random.sample(range(max + 1), n)
 
-def get_case_by_idx(cursor, idx):
-    cursor.execute("select ecli, full_text from ecli_texts order by ecli limit 1 offset %s;", (idx,))
-    return cursor.fetchone()
+def get_case_by_idx(cur, idx):
+    cur.execute("select ecli, full_text from ecli_texts order by ecli limit 1 offset %s;", (idx,))
+    return cur.fetchone()
 
-def get_case_by_ecli(cursor, ecli_id):
-    cursor.execute("select ecli, full_text from ecli_texts where ecli = %s limit 1;", (ecli_id,))
-    return cursor.fetchone()
+def get_case_by_ecli(cur, ecli_id):
+    cur.execute("select ecli, full_text from ecli_texts where ecli = %s limit 1;", (ecli_id,))
+    return cur.fetchone()
     
-def get_lido_links_by_ecli(cursor, ecli):
+def get_lido_links_by_ecli(cur, ecli):
     lido_links = []
     
-    cursor.execute("""
+    cur.execute("""
         SELECT l.type, l.number, l.bwb_id, l.bwb_label_id, l.title, cl.opschrift, cl.source
         FROM law_element l
         JOIN case_law cl ON (cl.law_id = l.id)
@@ -50,8 +50,8 @@ def get_lido_links_by_ecli(cursor, ecli):
         GROUP BY l.bwb_label_id, l.type, l.number, l.bwb_id, l.bwb_label_id, l.title, cl.opschrift, cl.source
     """, (ecli,))
     
-    for lido_link in cursor:
-        row_dict = dict(zip([desc[0] for desc in cursor.description], lido_link))
+    for lido_link in cur:
+        row_dict = dict(zip([desc[0] for desc in cur.description], lido_link))
         lido_links.append(row_dict)
     
     return lido_links
@@ -64,34 +64,34 @@ def prepare_specific(ecli_id):
 
     logging.debug(f"Preparing by appending one cherry-picked ecli: {ecli_id}")
     
-    conn = get_conn()
-    cursor = conn.cursor()
-    
-    case = get_case_by_ecli(cursor, ecli_id)
-    
-    if case is None:
-        logging.debug("Case with ecli \"%s\" not found", ecli_id)
-        return
-    
-    (case_ecli, case_full_text,) = case
-    
-    path_case = os.path.join(DIR_ANALYSIS_DATA, str(case_ecli))
-    path_case_text = os.path.join(path_case, FILENAME_CASE_TEXT)
-    path_case_lido_links = os.path.join(path_case, FILENAME_CASE_LIDO_LINKS)
-    os.makedirs(path_case)
-    
-    with open(path_case_text, 'w') as f:
-        f.write(case_full_text)
-    
-    # 3. fetch links of corresponding texts from database as ground-truth for (atleast) true-positives
-    lido_links = get_lido_links_by_ecli(cursor, case_ecli)
-    
-    lido_links_json = json.dumps(lido_links, indent=4)
-    
-    with open(path_case_lido_links, 'w') as f:
-        f.write(lido_links_json)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
         
-    logging.debug("Preperation done")
+            case = get_case_by_ecli(cur, ecli_id)
+            
+            if case is None:
+                logging.debug("Case with ecli \"%s\" not found", ecli_id)
+                return
+            
+            (case_ecli, case_full_text,) = case
+            
+            path_case = os.path.join(DIR_ANALYSIS_DATA, str(case_ecli))
+            path_case_text = os.path.join(path_case, FILENAME_CASE_TEXT)
+            path_case_lido_links = os.path.join(path_case, FILENAME_CASE_LIDO_LINKS)
+            os.makedirs(path_case)
+            
+            with open(path_case_text, 'w') as f:
+                f.write(case_full_text)
+            
+            # 3. fetch links of corresponding texts from database as ground-truth for (atleast) true-positives
+            lido_links = get_lido_links_by_ecli(cur, case_ecli)
+            
+            lido_links_json = json.dumps(lido_links, indent=4)
+            
+            with open(path_case_lido_links, 'w') as f:
+                f.write(lido_links_json)
+                
+            logging.debug("Preperation done")
 
 def prepare(sample_size = None, seed = None):
     # if sample_size is None: sample_size = 1000
@@ -117,32 +117,31 @@ def prepare(sample_size = None, seed = None):
     
     # 2. fetch full-texts from database and place in data folder
     
-    conn = get_conn()
-    cursor = conn.cursor()
-    
-    for idx in id_list:
-        case = get_case_by_idx(cursor, idx)
-        
-        if case is None:
-            logging.debug("case with idx %s not found", idx)
-            continue
-        
-        (case_ecli, case_full_text,) = case
-        
-        path_case = os.path.join(DIR_ANALYSIS_DATA, str(case_ecli))
-        path_case_text = os.path.join(path_case, FILENAME_CASE_TEXT)
-        path_case_lido_links = os.path.join(path_case, FILENAME_CASE_LIDO_LINKS)
-        os.makedirs(path_case)
-        
-        with open(path_case_text, 'w') as f:
-            f.write(case_full_text)
-        
-        # 3. fetch links of corresponding texts from database as ground-truth for (atleast) true-positives
-        lido_links = get_lido_links_by_ecli(cursor, case_ecli)
-        
-        lido_links_json = json.dumps(lido_links, indent=4)
-        
-        with open(path_case_lido_links, 'w') as f:
-            f.write(lido_links_json)
-        
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for idx in id_list:
+                case = get_case_by_idx(cur, idx)
+                
+                if case is None:
+                    logging.debug("case with idx %s not found", idx)
+                    continue
+                
+                (case_ecli, case_full_text,) = case
+                
+                path_case = os.path.join(DIR_ANALYSIS_DATA, str(case_ecli))
+                path_case_text = os.path.join(path_case, FILENAME_CASE_TEXT)
+                path_case_lido_links = os.path.join(path_case, FILENAME_CASE_LIDO_LINKS)
+                os.makedirs(path_case)
+                
+                with open(path_case_text, 'w') as f:
+                    f.write(case_full_text)
+                
+                # 3. fetch links of corresponding texts from database as ground-truth for (atleast) true-positives
+                lido_links = get_lido_links_by_ecli(cur, case_ecli)
+                
+                lido_links_json = json.dumps(lido_links, indent=4)
+                
+                with open(path_case_lido_links, 'w') as f:
+                    f.write(lido_links_json)
+                
     logging.debug("Preperation done")
