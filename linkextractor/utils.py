@@ -293,7 +293,8 @@ def get_amount_cases_by_bwb_and_label_ids(ids_list: List[Tuple]):
     Returns a lookup list with the amount of cases related to a list of tuples of bwb- and bwb_label-ids
     """
 
-    result = []
+    if len(ids_list) == 0:
+        return {}
 
     with get_conn() as conn:
         with conn.cursor() as cur:
