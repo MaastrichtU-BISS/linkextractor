@@ -154,7 +154,9 @@ lookup_list = get_amount_cases_by_bwb_and_label_ids(tuple_list)
 for law in law_list:
     law['check_related_cases'] = lookup_list.get((law['bwb_id'], law['bwb_label_id']))
 
-print("the results of this test case will change in the future")
+print("NOTE: the results of this test case will change in the future")
 
 for law in law_list:
     assert law['check_related_cases'] == law['amount_related_cases'], "amount cases should be the same"
+
+print("succeeded")
