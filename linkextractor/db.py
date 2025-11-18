@@ -9,42 +9,9 @@ load_dotenv()
 
 DB_URL = os.getenv("LINKEXTRACTOR_DB_URL")
 
-MIN_CONN = 1
-MAX_CONN = 5
-
-_pool = None
-
 def set_db_url(_db_url):
     global DB_URL
     DB_URL = _db_url
 
-def _get_pool():
-    """Lazy-initialize the pool."""
-    global _pool
-    if _pool is None:
-        _pool = SimpleConnectionPool(
-            MIN_CONN,
-            MAX_CONN,
-            DB_URL
-        )
-    return _pool
-
-
-@contextmanager
-def get_conn() -> Iterator[connection]:
-    """
-    Usage:
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(...)
-    """
-    pool = _get_pool()
-    conn = pool.getconn()
-    try:
-        yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        pool.putconn(conn)
+def get_conn():
+    return psycopg2.connect(DB_URL, connect_timeout=5)
