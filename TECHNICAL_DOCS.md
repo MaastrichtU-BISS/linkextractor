@@ -173,14 +173,14 @@ Output (List of Link dictionaries)
 
 ```
 linkextractor
-├── lxml           # XML/HTML parsing
-├── requests       # HTTP client
-├── pytest         # Testing framework
-├── pyoxigraph     # RDF graph database
-├── rdflib         # RDF library
-├── psycopg2-binary# PostgreSQL adapter
-├── python-dotenv  # Environment variable loading
-└── marisa-trie    # Fast trie data structure
+├── lxml            # XML/HTML parsing
+├── requests        # HTTP client
+├── pytest          # Testing framework
+├── pyoxigraph      # RDF graph database
+├── rdflib          # RDF library
+├── psycopg2-binary # PostgreSQL adapter
+├── python-dotenv   # Environment variable loading
+└── marisa-trie     # Fast trie data structure
 ```
 
 ---
@@ -597,7 +597,7 @@ if exact and len(results) > 1:
 | `exact` | `-e/--exact` | Enable exact matching mode |
 | `use_trie` | `-n/--no-trie` | Disable trie for alias lookup |
 | `verbose` | `-v/--verbose` | Enable debug logging |
-| `database` | `-d/--database` | Override database URL |
+| `database` | `-d/--database` | Override database URL (takes precedence over `LINKEXTRACTOR_DB_URL`) |
 
 ### Files
 
