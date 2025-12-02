@@ -20,6 +20,10 @@
 
 LinkExtractor is a Python package designed to extract legal reference links from text documents. It specializes in identifying and resolving references to Dutch law (wetgeving), including articles, books, and legal codes such as the Burgerlijk Wetboek (BW), Algemene wet bestuursrecht (AWB), and others.
 
+### Background
+
+This package is inspired by and builds upon the [KOOP LinkExtractor](https://gitlab.com/koop/ld/lx/linkextractor) project. The data required for the system to function (law aliases and elements) is set up through the [LIDO DAG pipeline](https://github.com/maastrichtlawtech/case-law-explorer/tree/main/airflow/dags/lido) from the Case Law Explorer repository.
+
 ### Supported Input Types
 
 The system supports two primary input types:
@@ -174,7 +178,6 @@ Output (List of Link dictionaries)
 ```
 linkextractor
 ├── lxml            # XML/HTML parsing
-├── requests        # HTTP client
 ├── pytest          # Testing framework
 ├── pyoxigraph      # RDF graph database
 ├── rdflib          # RDF library
@@ -244,10 +247,11 @@ extract_links(text, exact=True)
         → get_patterns() returns PT_REFS + PT_REFS_EXACT
         → patterns wrapped with ^\s*...\s*$
     → fix_matches(matches)
+    → Split multi-article matches (ARTICLES → individual ARTICLE)
     → find_laws() for each match
 ```
 
-**Expected Output**: Single result or warning for multiple matches
+**Expected Output**: Single result or warning for multiple matches (unless multi-article reference found)
 
 #### Branch 2: Full-Text Mode → Alias Detection + Pattern Matching
 
@@ -310,6 +314,8 @@ fix_matches(matches):
 
 **Trigger**: Match contains `ARTICLES` capture group (multiple references)
 
+**Note**: This branch applies to both exact and full-text modes.
+
 **Codepath**:
 ```python
 if 'ARTICLES' in match['patterns']:
@@ -364,7 +370,7 @@ Full patterns for in-text matching:
 1. **Structured with Book**: `Artikel 5 van het boek 7 van het BW`
 2. **Simple Article+Title**: `Artikel 61 Wet toezicht trustkantoren 2018`
 3. **Title-First**: `Burgerlijk Wetboek Boek 7, Artikel 658`
-4. **Multiple Articles**: `Artikel 7:658 van het BW`
+4. **Multiple Articles**: `Artikel 1, 2 en 3 van het BW`
 
 #### Exact-Only Patterns (`PT_REFS_EXACT`)
 
