@@ -95,7 +95,7 @@ def extract_links(text, exact=False, loose=False, use_trie=True):
 
 
         sub_matches = []
-        if not exact and 'ARTICLES' in match['patterns']:
+        if 'ARTICLES' in match['patterns']:
             logging.debug("multiple parts in match at span %s", match['span'])
             # if a match contains multiple references (to articles), then split those up, remove
             # the ARTICLES match and place each individual article in the ARTICLE-pattern 
@@ -112,9 +112,7 @@ def extract_links(text, exact=False, loose=False, use_trie=True):
             sub_matches = [match]
 
         for sub_match in sub_matches:
-
-            # print("AAA", sub_match['patterns'].items())
-
+            
             # construct fragments from a mapping of capture groups-names to types in the db and skip empty captures and the title capture
             fragments: Fragment = {
                 mapping[k]:str(v)
