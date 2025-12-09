@@ -1,5 +1,7 @@
 # LinkExtractor Lite
 
+The technical implementation details can be found in [ARCHITECTURE.md](ARCHITECTURE.md)
+
 ## Setting-up
 
 1. Clone and `cd` into repository
@@ -48,15 +50,3 @@ At the moment, there are two entrypoints of the applciation for testing purposes
 ## Data
 
 For retrieving the appropriate data, [this DAG](https://github.com/maastrichtlawtech/case-law-explorer/tree/etl-lido/airflow/dags/lido) needs to be ran to populate the Postgres (and SQLite) database.
-
-## Evaluation process
-
-The general process is as follows:
-
-First, allthough there are similarities in both processes, there is a distinction between searching in text and searching within an exact string.
-
-### Exact
-
-The easiest and fastest is assuming that the whole text is a reference, such as: `art. 1:5 bw`.
-First, the string will be passed to a database that does a *reverse like* query against the table containing aliases for law items.
-This will find all re
